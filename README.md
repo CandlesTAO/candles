@@ -41,8 +41,8 @@ A decentralized cryptocurrency candle prediction network built on Bittensor. Min
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/thealligatorking/Candles
-   cd Candles
+   git clone https://github.com/CandlesTAO/candles
+   cd candles
    ```
 
 2. **Use the automated setup script**:
