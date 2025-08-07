@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+uv run -m candles.validator.validator --netuid 31 --wallet.name validator --wallet.hotkey validator_default --logging.trace "$@"

@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+uv run candles/miner/miner.py --axon.external_ip <your-ip-address> --netuid 31 --axon.port 8092 --wallet.name miner --wallet.hotkey miner_default --blacklist.validator_min_stake 0 --logging.info --neuron.epoch_length 50
