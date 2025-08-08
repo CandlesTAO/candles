@@ -12,7 +12,7 @@ class CandleTAOPredictionSubmission(CandlesBaseModel):
     prediction_id: int
     miner_uid: int
     hotkey: str
-    network: str = "mainnet"
+    network: str = "testnet"
     prediction_date: datetime
     interval_id: str
     is_closed: bool
@@ -27,7 +27,7 @@ class CandleTAOScoreSubmission(CandlesBaseModel):
     """Model for score submission data matching ScoreDataSchema"""
     prediction_id: int
     miner_uid: int
-    network: str = "mainnet"
+    network: str = "testnet"
     interval_id: str
     color_score: float
     price_score: float
@@ -43,7 +43,7 @@ class CandleTAOMinerScoreSubmission(CandlesBaseModel):
     miner_uid: int
     score: float
     last_scored_prediction_id: int
-    network: str = "mainnet"
+    network: str = "testnet"
 
 
 class CandleTAOClient:
