@@ -22,7 +22,7 @@ import bittensor as bt
 from bittensor_wallet.mock.wallet_mock import MockWallet
 from .mocks import MockMetagraph, MockSubtensor
 from .utils import check_config, add_args, config, ttl_get_block
-
+from . import __spec_version__ as spec_version
 
 
 class BaseNeuron(Protocol):
@@ -49,7 +49,7 @@ class BaseNeuron(Protocol):
     subtensor: "bt.AsyncSubtensor"
     wallet: "bt.wallet"
     metagraph: "bt.metagraph"
-    spec_version: int = 1
+    spec_version: int = spec_version
 
     @property
     def block(self):
