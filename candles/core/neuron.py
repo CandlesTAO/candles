@@ -24,6 +24,8 @@ from .mocks import MockMetagraph, MockSubtensor
 from .utils import check_config, add_args, config, ttl_get_block
 from . import __spec_version__ as spec_version
 
+from dotenv import load_dotenv
+load_dotenv()
 
 class BaseNeuron(Protocol):
     """
