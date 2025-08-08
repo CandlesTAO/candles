@@ -27,6 +27,7 @@ import os
 
 # Third Party
 import numpy as np
+from dotenv import load_dotenv
 
 # Bittensor
 import bittensor
@@ -37,6 +38,7 @@ from ..core.mocks import MockDendrite
 from ..core.utils import add_validator_args
 
 
+load_dotenv()
 
 
 

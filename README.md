@@ -105,8 +105,9 @@ If you prefer manual setup:
    ./miner
    ```
 
-4. **Start validator** (if running a validator - still in development):
+4. **Start validator** (if running a validator):
    ```bash
+   cp .example.env .env # update the variables
    ./validator
    ```
 
