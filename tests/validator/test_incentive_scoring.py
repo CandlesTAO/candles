@@ -168,18 +168,24 @@ class TestIncentiveScoringAndSetWeights:
     ):
         """Test that _update_validator_scores correctly updates validator scores."""
         validator = mock_validator_with_scoring
+        
+        # Mock the decay score calculation to return raw average_score values
+        with patch.object(validator, '_calculate_historical_decay_score') as mock_decay:
+            def side_effect(miner_uid, current_daily_score):
+                return current_daily_score  # Return raw score without decay
+            mock_decay.side_effect = side_effect
 
-        validator._update_validator_scores(sample_miner_scores)
+            validator._update_validator_scores(sample_miner_scores)
 
-        # Verify update_scores was called with correct parameters
-        expected_rewards = np.array([0.955, 0.32])
-        expected_uids = [1, 2]
+            # Verify update_scores was called with correct parameters
+            expected_rewards = np.array([0.955, 0.32])
+            expected_uids = [1, 2]
 
-        validator.update_scores.assert_called_once()
-        call_args = validator.update_scores.call_args[0]
+            validator.update_scores.assert_called_once()
+            call_args = validator.update_scores.call_args[0]
 
-        np.testing.assert_array_almost_equal(call_args[0], expected_rewards)
-        assert list(call_args[1]) == expected_uids
+            np.testing.assert_array_almost_equal(call_args[0], expected_rewards)
+            assert list(call_args[1]) == expected_uids
 
     def test_update_validator_scores_handles_empty_scores(self, mock_validator_with_scoring):
         """Test that _update_validator_scores handles empty miner scores gracefully."""
