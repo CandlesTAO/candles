@@ -76,8 +76,28 @@ async def process_responses(
     working_miner_uids = []
     finished_responses = []
 
+    # Determine expected interval_id from the request so we can drop mismatches
+    expected_interval_id = (
+        input_synapse.candle_prediction.interval_id
+        if input_synapse and input_synapse.candle_prediction
+        else None
+    )
+
     for response, uid in zip(responses, batch_uids):
         if processed_response := process_single_response(response, uid):
+            # Filter out responses whose interval_id does not match the request
+            try:
+                actual_interval_id = processed_response.response.candle_prediction.interval_id  # type: ignore
+            except Exception:
+                actual_interval_id = None  # Defensive default
+
+            if expected_interval_id and actual_interval_id != expected_interval_id:
+                bittensor.logging.warning(
+                    f"UID {uid}: Ignoring prediction for mismatched interval_id: "
+                    f"expected={expected_interval_id}, actual={actual_interval_id}"
+                )
+                continue
+
             finished_responses.append(processed_response.response)
             working_miner_uids.append(processed_response.uid)
 

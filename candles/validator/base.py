@@ -23,9 +23,11 @@ import argparse
 from traceback import print_exception
 import time
 import datetime as dt
+import os
 
 # Third Party
 import numpy as np
+from dotenv import load_dotenv
 
 # Bittensor
 import bittensor
@@ -36,6 +38,7 @@ from ..core.mocks import MockDendrite
 from ..core.utils import add_validator_args
 
 
+load_dotenv()
 
 
 
@@ -799,21 +802,56 @@ class BaseValidatorNeuron(BaseNeuron):
     def save_state(self):
         """Saves the state of the validator to a file."""
 
+        # Ensure the directory exists before saving
+        try:
+            os.makedirs(self.config.neuron.full_path, exist_ok=True)
+        except Exception as e:
+            bittensor.logging.error(f"Failed to ensure state directory exists: {e}")
+
         # Save the state of the validator to file.
-        bittensor.logging.debug(f"Saving validator state to {self.config.neuron.full_path}/state.npz")
+        state_path = f"{self.config.neuron.full_path}/state.npz"
+        bittensor.logging.debug(f"Saving validator state to {state_path}")
         np.savez(
-            f"{self.config.neuron.full_path}/state.npz",
+            state_path,
             step=self.step,
             scores=self.scores,
             hotkeys=self.hotkeys,
         )
 
     def load_state(self):
-        """Loads the state of the validator from a file."""
-        bittensor.logging.debug(f"Loading validator state from {self.config.neuron.full_path}/state.npz")
+        """Loads the state of the validator from a file. If it doesn't exist, initialize defaults."""
+        state_path = f"{self.config.neuron.full_path}/state.npz"
+        bittensor.logging.debug(f"Loading validator state from {state_path}")
 
-        # Load the state of the validator from file.
-        state = np.load(f"{self.config.neuron.full_path}/state.npz")
-        self.step = state["step"]
-        self.scores = state["scores"]
-        self.hotkeys = state["hotkeys"]
+        try:
+            state = np.load(state_path)
+            self.step = int(state["step"]) if "step" in state else 0
+            self.scores = state["scores"] if "scores" in state else (
+                np.zeros(self.metagraph.n, dtype=np.float32) if getattr(self, "metagraph", None) else np.array([])
+            )
+            self.hotkeys = list(state["hotkeys"]) if "hotkeys" in state else (
+                copy.deepcopy(self.metagraph.hotkeys) if getattr(self, "metagraph", None) else []
+            )
+            bittensor.logging.info("Validator state loaded successfully")
+        except FileNotFoundError:
+            bittensor.logging.info("No existing validator state found; initializing fresh state and creating file")
+            # Initialize default state
+            self.step = 0
+            if getattr(self, "metagraph", None):
+                self.scores = np.zeros(self.metagraph.n, dtype=np.float32)
+                self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+            else:
+                # Will be populated later in async_init for non-mock mode
+                self.scores = np.array([])
+                self.hotkeys = []
+            # Persist initial state for future runs
+            self.save_state()
+        except Exception as e:
+            bittensor.logging.error(f"Failed to load validator state: {e}. Initializing defaults.")
+            self.step = 0
+            if getattr(self, "metagraph", None):
+                self.scores = np.zeros(self.metagraph.n, dtype=np.float32)
+                self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+            else:
+                self.scores = np.array([])
+                self.hotkeys = []

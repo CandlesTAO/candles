@@ -951,16 +951,28 @@ class Validator(BaseValidatorNeuron):
         await super().cleanup()
 
     @staticmethod
-    def parse_responses(miner_predictions: list[GetCandlePrediction], prediction_requests: list[CandlePrediction]) -> list[dict]:
+    def parse_responses(
+        miner_predictions: list[GetCandlePrediction],
+        prediction_requests: list[CandlePrediction],
+    ) -> dict[str, list[CandlePrediction]]:
         """
         Parses the responses from the miners. They are grouped by interval_id.
+        Unknown interval_ids (not present in the original requests) are ignored.
         """
-        parsed_responses = {
-            prediction.interval_id: []
-            for prediction in prediction_requests
+        parsed_responses: dict[str, list[CandlePrediction]] = {
+            prediction.interval_id: [] for prediction in prediction_requests
         }
+        allowed_ids = set(parsed_responses.keys())
         for miner_prediction in miner_predictions:
-            parsed_responses[miner_prediction.candle_prediction.interval_id].append(miner_prediction.candle_prediction)
+            interval_id = miner_prediction.candle_prediction.interval_id
+            if interval_id not in allowed_ids:
+                bittensor.logging.warning(
+                    f"Ignoring prediction for unexpected interval_id: {interval_id}"
+                )
+                continue
+            parsed_responses[interval_id].append(
+                miner_prediction.candle_prediction
+            )
         return parsed_responses
 
     async def forward(self):
