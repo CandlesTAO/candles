@@ -428,6 +428,7 @@ class Validator(BaseValidatorNeuron):
                     submission = CandleTAOScoreSubmission(
                         prediction_id=result.prediction_id,
                         miner_uid=result.miner_uid,
+                        network="mainnet",
                         interval_id=interval_id,
                         color_score=result.color_score,
                         price_score=result.price_score,
@@ -601,7 +602,9 @@ class Validator(BaseValidatorNeuron):
                     # This evaluates how accurate each miner's predictions were
                     bittensor.logging.debug(f"Running scoring async for {len(predictions_data)} intervals")
                     scoring_results = await self.batch_scorer.score_predictions_by_interval(predictions_data)
-
+                    if os.getenv("CANDLETAO_BEARER_TOKEN"):
+                        # Submit scores to CandleTAO after scoring
+                        await self._submit_scores_to_candletao(scoring_results)
                     # Write scoring results to file
                     await self._write_scoring_results_to_file(scoring_results)
 
