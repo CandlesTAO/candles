@@ -1,7 +1,8 @@
 # Standard Lib
 import math
-from typing import Any
 import bittensor
+
+from candles.prices.schemas import CoinDeskResponseOHLC
 
 # Local
 from ..data import CandlePrediction, CandleColor
@@ -22,7 +23,7 @@ class PredictionScorer(BaseScorer):
         self.price_client = price_client
         self.symbol = symbol
 
-    async def score_prediction(self, prediction: CandlePrediction, actual_data: dict[str, Any] | None = None) -> ScoringResult:
+    async def score_prediction(self, prediction: CandlePrediction, actual_ohlc: CoinDeskResponseOHLC | None = None) -> ScoringResult:
         """Score a prediction against actual market data.
 
         Args:
@@ -32,9 +33,6 @@ class PredictionScorer(BaseScorer):
         Returns:
             ScoringResult: The scoring result
         """
-        # Get actual market data
-        # you'll want to later optimise this to where you're not making extraneous double calls
-        actual_ohlc = await self.price_client.get_price_by_interval(self.symbol, prediction.interval_id)
 
         # Calculate color accuracy score
         color_score = self._calculate_color_score(prediction.color, actual_ohlc.color)

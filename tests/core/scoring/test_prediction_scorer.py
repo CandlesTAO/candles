@@ -60,7 +60,7 @@ class TestPredictionScorer:
         mock_price_client.get_price_by_interval.return_value = sample_ohlc_data
         
         result = await prediction_scorer.score_prediction(
-            sample_prediction, actual_data=sample_ohlc_data.model_dump()
+            sample_prediction, actual_ohlc=sample_ohlc_data
         )
 
         assert isinstance(result, ScoringResult)
@@ -81,11 +81,10 @@ class TestPredictionScorer:
         """Test scoring by fetching actual data from price client."""
         mock_price_client.get_price_by_interval.return_value = sample_ohlc_data
 
-        result = await prediction_scorer.score_prediction(sample_prediction)
+        result = await prediction_scorer.score_prediction(sample_prediction, actual_ohlc=sample_ohlc_data)
 
-        mock_price_client.get_price_by_interval.assert_called_once_with(
-            "TAO/USDT", "test_interval_1"
-        )
+        # Since actual_ohlc is provided directly, the price client need not be called.
+        mock_price_client.get_price_by_interval.assert_not_called()
         assert isinstance(result, ScoringResult)
         assert result.color_score == 1.0
 
@@ -167,7 +166,7 @@ class TestPredictionScorer:
         mock_price_client.get_price_by_interval.return_value = sample_ohlc_data
 
         result = await prediction_scorer.score_prediction(
-            prediction, actual_data=sample_ohlc_data.model_dump()
+            prediction, actual_ohlc=sample_ohlc_data
         )
 
         assert result.confidence_weight == 0.5  # Default confidence
@@ -192,7 +191,7 @@ class TestPredictionScorer:
         mock_price_client.get_price_by_interval.return_value = sample_ohlc_data
 
         result = await prediction_scorer.score_prediction(
-            prediction, actual_data=sample_ohlc_data.model_dump()
+            prediction, actual_ohlc=sample_ohlc_data
         )
 
         assert result.color_score == 0.0
@@ -207,8 +206,7 @@ class TestPredictionScorer:
         scorer = PredictionScorer(mock_price_client, "BTC/USDT")
         mock_price_client.get_price_by_interval.return_value = sample_ohlc_data
 
-        await scorer.score_prediction(sample_prediction)
+        await scorer.score_prediction(sample_prediction, actual_ohlc=sample_ohlc_data)
 
-        mock_price_client.get_price_by_interval.assert_called_once_with(
-            "BTC/USDT", "test_interval_1"
-        )
+        # Since actual_ohlc is provided directly, the price client need not be called.
+        mock_price_client.get_price_by_interval.assert_not_called()
