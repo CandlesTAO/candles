@@ -43,6 +43,14 @@ class PredictionBatchScorer:
             # Track processed prediction IDs to avoid duplicates
             processed_prediction_keys = set()
 
+            try:
+                actual_ohlc = await self.prediction_scorer.price_client.get_price_by_interval(
+                    self.prediction_scorer.symbol, interval_id
+                )
+            except Exception as e:
+                bittensor.logging.error(f"Error fetching price data for interval {interval_id}: {e}")
+                results[interval_id] = []
+                continue
             bittensor.logging.debug(f"Processing {len(predictions)} predictions for interval {interval_id}")
 
             for prediction_dict in predictions:
@@ -64,7 +72,7 @@ class PredictionBatchScorer:
                     prediction_objects.append(prediction)
                     # Create async task for scoring
                     # these aren't tasks, but rather coroutines, but that's semantics
-                    task = self.prediction_scorer.score_prediction(prediction)
+                    task = self.prediction_scorer.score_prediction(prediction, actual_ohlc)
                     scoring_tasks.append(task)
                 except Exception as e:
                     bittensor.logging.error(f"Error creating prediction object: {e}")
