@@ -69,6 +69,8 @@ class Validator(BaseValidatorNeuron):
         # Background task management
         self.scoring_task = None
 
+        self.enforce_unique_miner_ip = True
+
     async def async_init(self):
         """
         Async initialization for validator. Must be called after __init__.
@@ -549,7 +551,8 @@ class Validator(BaseValidatorNeuron):
                 submission = CandleTAOMinerScoreSubmission(
                     miner_uid=miner_uid,
                     score=score,
-                    last_scored_prediction_id=last_prediction_id
+                    last_scored_prediction_id=last_prediction_id,
+                    network="mainnet" if self.config.netuid == 31 else "testnet"
                 )
                 submissions.append(submission)
             except Exception as e:
@@ -994,6 +997,8 @@ class Validator(BaseValidatorNeuron):
             self (:obj:`bittensor.neuron.Neuron`): The neuron object which contains all the necessary state for the validator.
         """
         miner_uids = get_miner_uids(self.metagraph, self.uid)
+        if self.enforce_unique_miner_ip and not getattr(self.config, "mock", False):
+            miner_uids = self._filter_uids_by_unique_ip(miner_uids)
         validator_prediction_requests = self.get_next_candle_prediction_requests()
         if len(validator_prediction_requests) == 0 or len(miner_uids) == 0:
             bittensor.logging.info("No prediction requests to send or no miners to send them to.")
@@ -1058,6 +1063,57 @@ class Validator(BaseValidatorNeuron):
             return [], miner_uids
 
         return all_finished_responses, working_miner_uids
+
+    def _filter_uids_by_unique_ip(self, uids: list[int]) -> list[int]:
+        """
+        Enforce that only one miner per IP is selected by keeping the lowest UID for each IP.
+
+        Args:
+            uids: Candidate miner UIDs
+
+        Returns:
+            Filtered list of UIDs containing at most one UID per unique IP.
+        """
+        if not hasattr(self, "metagraph") or not hasattr(self.metagraph, "axons"):
+            return uids
+
+        ip_to_uid: dict[str, int] = {}
+
+        def _get_ip_for_uid(uid: int) -> str | None:
+            try:
+                axon = self.metagraph.axons[uid]
+            except Exception:
+                return None
+            # Try common attributes across bittensor versions/mocks
+            for attr in ("ip", "external_ip", "ip_str"):
+                if hasattr(axon, attr):
+                    try:
+                        val = getattr(axon, attr)
+                        if val is None:
+                            continue
+                        return str(val)
+                    except Exception:
+                        continue
+            return None
+
+        for uid in sorted(uids):
+            ip = _get_ip_for_uid(uid)
+            if not ip:
+                ip_key = f"unknown:{uid}"
+            else:
+                ip_key = ip
+
+            if ip_key not in ip_to_uid:
+                ip_to_uid[ip_key] = uid
+
+        filtered = sorted(ip_to_uid.values())
+        dropped = len(uids) - len(filtered)
+        if dropped > 0:
+            bittensor.logging.info(
+                f"Enforcing unique miner per IP: kept {len(filtered)} of {len(uids)} (dropped {dropped} duplicates)"
+            )
+            bittensor.logging.debug(f"Filtered UIDs: {filtered}")
+        return filtered
 
     def save(
         self, finished_responses: list[dict], working_miner_uids: list[int], miner_uids: list[int], validator_prediction_requests: list[CandlePrediction]
