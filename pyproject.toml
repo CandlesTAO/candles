@@ -8,7 +8,7 @@ requires-python = ">=3.12"
 # Use build-system for local development only
 dependencies = [
     "aiofiles>=24.1.0",
-    "bittensor>=9.6.1",
+    "bittensor>=9.9.0",
     "cachetools>=6.0.0",
     "ipdb>=0.13.13",
     "pandas>=2.3.0",
