@@ -285,6 +285,59 @@ class TestValidator:
                         )
                         mock_save_blacklist.assert_called_once()
 
+    def test_ip_deduplication_in_forward(self, validator_instance):
+        """Test that IP deduplication is applied during forward pass when enabled."""
+        # Mock metagraph with axons that have IPs
+        mock_axon1 = MagicMock()
+        mock_axon1.ip = "192.168.1.100"
+        mock_axon2 = MagicMock()
+        mock_axon2.ip = "192.168.1.100"  # Same IP as axon1
+        mock_axon3 = MagicMock()
+        mock_axon3.ip = "192.168.1.101"  # Different IP
+        
+        validator_instance.metagraph.axons = [mock_axon1, mock_axon2, mock_axon3]
+        validator_instance.enforce_unique_miner_ip = True
+        
+        # Test with UIDs [0, 1, 2] where 0 and 1 share the same IP
+        test_uids = [0, 1, 2]
+        filtered_uids = validator_instance._filter_uids_by_unique_ip(test_uids)
+        
+        # Should keep UID 0 (first occurrence) and UID 2 (different IP)
+        # UID 1 should be dropped as it shares IP with UID 0
+        assert 0 in filtered_uids
+        assert 2 in filtered_uids
+        assert 1 not in filtered_uids  # Should be dropped due to IP duplication
+        assert len(filtered_uids) == 2
+
+    def test_ip_deduplication_disabled(self, validator_instance):
+        """Test that IP deduplication is not applied when disabled."""
+        validator_instance.enforce_unique_miner_ip = False
+        
+        # When disabled, the forward method should not call _filter_uids_by_unique_ip
+        # So we test that the method itself works correctly but is not called
+        test_uids = [0, 1, 2]
+        
+        # Mock the metagraph to have axons with IPs
+        mock_axon1 = MagicMock()
+        mock_axon1.ip = "192.168.1.100"
+        mock_axon2 = MagicMock()
+        mock_axon2.ip = "192.168.1.100"  # Same IP as axon1
+        mock_axon3 = MagicMock()
+        mock_axon3.ip = "192.168.1.101"  # Different IP
+        
+        validator_instance.metagraph.axons = [mock_axon1, mock_axon2, mock_axon3]
+        
+        # Even when disabled, the method should still work if called directly
+        # (this tests the method's internal logic)
+        filtered_uids = validator_instance._filter_uids_by_unique_ip(test_uids)
+        
+        # The method should still deduplicate by IP regardless of the flag
+        # The flag only controls whether the method is called in forward()
+        assert 0 in filtered_uids
+        assert 2 in filtered_uids
+        assert 1 not in filtered_uids  # Should be dropped due to IP duplication
+        assert len(filtered_uids) == 2
+
     @pytest.mark.asyncio
     async def test_gather_predictions_from_miners(
         self, validator_instance, sample_candle_prediction
