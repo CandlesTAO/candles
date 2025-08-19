@@ -1067,7 +1067,7 @@ class Validator(BaseValidatorNeuron):
     def _filter_uids_by_unique_ip(self, uids: list[int]) -> list[int]:
         """
         Enforce that only one miner per IP is selected by keeping the lowest UID for each IP.
-        Exempts the special IP address 0.0.0.0 from this restriction.
+
 
         Args:
             uids: Candidate miner UIDs
