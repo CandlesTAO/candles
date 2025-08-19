@@ -149,6 +149,93 @@ class TestFilterUidsByUniqueIp:
                         # Lowest uid per IP should be kept (5)
                         assert v._filter_uids_by_unique_ip(uids) == [5]
 
+    def test_exempts_ip_0000_from_unique_enforcement(self, base_validator):
+        """Test that IP 0.0.0.0 is exempted from unique IP enforcement."""
+        # Setup metagraph axons with 0.0.0.0 IPs and regular IPs
+        base_validator.metagraph.axons = {
+            1: make_axon_with("ip", "1.2.3.4"),
+            2: make_axon_with("ip", "0.0.0.0"),  # exempted IP
+            3: make_axon_with("ip", "0.0.0.0"),  # another exempted IP (should both be kept)
+            4: make_axon_with("ip", "5.6.7.8"),
+            5: make_axon_with("ip", "1.2.3.4"),  # duplicate of IP 1.2.3.4 (should be filtered)
+        }
+        uids = [1, 2, 3, 4, 5]
+
+        filtered = base_validator._filter_uids_by_unique_ip(uids)
+
+        # Should keep: 1 (lowest UID for 1.2.3.4), 2, 3 (both 0.0.0.0), 4 (5.6.7.8)
+        # Should drop: 5 (duplicate of 1.2.3.4)
+        assert filtered == [1, 2, 3, 4]
+        assert len(filtered) == 4
+
+    def test_exempts_ip_0000_with_mixed_ip_attributes(self, base_validator):
+        """Test that IP 0.0.0.0 is exempted regardless of which IP attribute contains it."""
+        # Setup metagraph axons with 0.0.0.0 in different IP attributes
+        base_validator.metagraph.axons = {
+            1: make_axon_with("ip", "0.0.0.0"),      # in 'ip' attribute
+            2: make_axon_with("external_ip", "0.0.0.0"),  # in 'external_ip' attribute
+            3: make_axon_with("ip_str", "0.0.0.0"),   # in 'ip_str' attribute
+            4: make_axon_with("ip", "1.2.3.4"),
+            5: make_axon_with("ip", "1.2.3.4"),       # duplicate (should be filtered)
+        }
+        uids = [1, 2, 3, 4, 5]
+
+        filtered = base_validator._filter_uids_by_unique_ip(uids)
+
+        # Should keep: 1, 2, 3 (all 0.0.0.0), 4 (lowest UID for 1.2.3.4)
+        # Should drop: 5 (duplicate of 1.2.3.4)
+        assert filtered == [1, 2, 3, 4]
+        assert len(filtered) == 4
+
+    def test_exempts_ip_0000_with_unknown_ips(self, base_validator):
+        """Test that IP 0.0.0.0 exemption works alongside unknown IP handling."""
+        # Setup metagraph axons with 0.0.0.0, unknown IPs, and regular IPs
+        base_validator.metagraph.axons = {
+            1: make_axon_with("ip", "0.0.0.0"),      # exempted IP
+            2: make_axon_with("ip", "0.0.0.0"),      # another exempted IP
+            3: make_axon_with(None, None),            # unknown IP
+            4: make_axon_with(None, None),            # another unknown IP (should be kept as separate)
+            5: make_axon_with("ip", "1.2.3.4"),
+            6: make_axon_with("ip", "1.2.3.4"),      # duplicate (should be filtered)
+        }
+        uids = [1, 2, 3, 4, 5, 6]
+
+        filtered = base_validator._filter_uids_by_unique_ip(uids)
+
+        # Should keep: 1, 2 (both 0.0.0.0), 3, 4 (both unknown IPs), 5 (lowest UID for 1.2.3.4)
+        # Should drop: 6 (duplicate of 1.2.3.4)
+        assert filtered == [1, 2, 3, 4, 5]
+        assert len(filtered) == 5
+
+    def test_exempts_ip_0000_edge_cases(self, base_validator):
+        """Test edge cases with IP 0.0.0.0 exemption."""
+        # Test with only 0.0.0.0 IPs
+        base_validator.metagraph.axons = {
+            1: make_axon_with("ip", "0.0.0.0"),
+            2: make_axon_with("ip", "0.0.0.0"),
+            3: make_axon_with("ip", "0.0.0.0"),
+        }
+        uids = [1, 2, 3]
+
+        filtered = base_validator._filter_uids_by_unique_ip(uids)
+
+        # All should be kept since they're all exempted
+        assert filtered == [1, 2, 3]
+        assert len(filtered) == 3
+
+        # Test with mixed case and whitespace (should still be exempted)
+        base_validator.metagraph.axons = {
+            4: make_axon_with("ip", " 0.0.0.0 "),    # with whitespace
+            5: make_axon_with("ip", "0.0.0.0"),      # normal
+        }
+        uids = [4, 5]
+
+        filtered = base_validator._filter_uids_by_unique_ip(uids)
+
+        # Both should be kept since they're both exempted
+        assert filtered == [4, 5]
+        assert len(filtered) == 2
+
 
 class TestForwardIntegrationWithIpFilter:
     @pytest.mark.asyncio

@@ -1067,6 +1067,7 @@ class Validator(BaseValidatorNeuron):
     def _filter_uids_by_unique_ip(self, uids: list[int]) -> list[int]:
         """
         Enforce that only one miner per IP is selected by keeping the lowest UID for each IP.
+        Exempts the special IP address 0.0.0.0 from this restriction.
 
         Args:
             uids: Candidate miner UIDs
@@ -1078,6 +1079,7 @@ class Validator(BaseValidatorNeuron):
             return uids
 
         ip_to_uid: dict[str, int] = {}
+        exempted_uids = []
 
         def _get_ip_for_uid(uid: int) -> str | None:
             try:
@@ -1103,16 +1105,22 @@ class Validator(BaseValidatorNeuron):
             else:
                 ip_key = ip
 
+            if ip_key == "0.0.0.0":
+                exempted_uids.append(uid)
+                continue
+
             if ip_key not in ip_to_uid:
                 ip_to_uid[ip_key] = uid
 
-        filtered = sorted(ip_to_uid.values())
+        # Combine unique IP UIDs with exempted UIDs
+        filtered = sorted(list(ip_to_uid.values()) + exempted_uids)
         dropped = len(uids) - len(filtered)
         if dropped > 0:
             bittensor.logging.info(
                 f"Enforcing unique miner per IP: kept {len(filtered)} of {len(uids)} (dropped {dropped} duplicates)"
             )
             bittensor.logging.debug(f"Filtered UIDs: {filtered}")
+
         return filtered
 
     def save(
