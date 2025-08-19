@@ -502,6 +502,11 @@ class BaseValidatorNeuron(BaseNeuron):
             if not ip:
                 continue
             
+
+            if ip == "0.0.0.0":
+                bittensor.logging.debug(f"Keeping weight for UID {uid} (IP: {ip}) with weight {weight:.6f} - exempted from IP deduplication")
+                continue
+            
             if ip not in ip_to_uid:
                 ip_to_uid[ip] = uid
                 bittensor.logging.debug(f"Keeping weight for UID {uid} (IP: {ip}) with weight {weight:.6f}")
