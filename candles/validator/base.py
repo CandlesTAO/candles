@@ -457,6 +457,74 @@ class BaseValidatorNeuron(BaseNeuron):
         bittensor.logging.info(f"Applied hardcoded weights: {target_weight_ratio*100}% to UID {target_uid}, {remaining_weight*100}% distributed among others")
         return new_weights
 
+    def _apply_ip_deduplication_to_weights(self, raw_weights: np.ndarray) -> np.ndarray:
+        """
+        Apply IP deduplication to weights to prevent multiple miners from the same IP
+        from getting network weights (preventing IP abuse).
+
+        Args:
+            raw_weights: The original raw weights array
+
+        Returns:
+            Modified weights array with only one miner per IP getting weights
+        """
+        if not hasattr(self, "metagraph") or not hasattr(self.metagraph, "axons"):
+            return raw_weights
+
+        # Create a copy to avoid modifying the original
+        deduplicated_weights = raw_weights.copy()
+        
+        # Track which IPs we've already allocated weights to
+        ip_to_uid: dict[str, int] = {}
+        
+        def _get_ip_for_uid(uid: int) -> str | None:
+            try:
+                axon = self.metagraph.axons[uid]
+            except Exception:
+                return None
+            # Try common attributes across bittensor versions/mocks
+            for attr in ("ip", "external_ip", "ip_str"):
+                if hasattr(axon, attr):
+                    try:
+                        val = getattr(axon, attr)
+                        if val is None:
+                            continue
+                        return str(val)
+                    except Exception:
+                        continue
+            return None
+
+        uid_weight_pairs = [(uid, raw_weights[uid]) for uid in range(len(raw_weights)) if raw_weights[uid] > 0]
+        uid_weight_pairs.sort(key=lambda x: x[1], reverse=True)  # Sort by weight descending
+
+        for uid, weight in uid_weight_pairs:
+            ip = _get_ip_for_uid(uid)
+            if not ip:
+                continue
+            
+
+            if ip == "0.0.0.0":
+                bittensor.logging.debug(f"Keeping weight for UID {uid} (IP: {ip}) with weight {weight:.6f} - exempted from IP deduplication")
+                continue
+            
+            if ip not in ip_to_uid:
+                ip_to_uid[ip] = uid
+                bittensor.logging.debug(f"Keeping weight for UID {uid} (IP: {ip}) with weight {weight:.6f}")
+            else:
+                deduplicated_weights[uid] = 0.0
+                bittensor.logging.debug(f"Zeroing weight for UID {uid} (IP: {ip}) to prevent IP abuse. Keeping UID {ip_to_uid[ip]} instead.")
+
+        # Log summary of IP deduplication
+        original_weight_count = np.count_nonzero(raw_weights)
+        final_weight_count = np.count_nonzero(deduplicated_weights)
+        if original_weight_count != final_weight_count:
+            bittensor.logging.info(
+                f"IP deduplication applied to weights: {original_weight_count} -> {final_weight_count} "
+                f"non-zero weights (prevented IP abuse)"
+            )
+
+        return deduplicated_weights
+
     def emission_control_scores(self, target_uid):
         scores = self.scores
         total_score = np.sum(scores)
@@ -542,6 +610,10 @@ class BaseValidatorNeuron(BaseNeuron):
         # Apply hardcoded weight distribution: 80% to UID 147
         raw_weights = self._apply_hardcoded_weights(raw_weights)
 
+        # Apply IP deduplication to prevent multiple miners from the same IP from getting weights
+        if hasattr(self, 'enforce_unique_miner_ip') and self.enforce_unique_miner_ip:
+            raw_weights = self._apply_ip_deduplication_to_weights(raw_weights)
+
         bittensor.logging.debug("raw_weights", raw_weights)
         bittensor.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
         # Process the raw weights to final_weights via subtensor limitations.
@@ -613,6 +685,10 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Apply hardcoded weight distribution: 80% to UID 147
         raw_weights = self._apply_hardcoded_weights(raw_weights)
+
+        # Apply IP deduplication to prevent multiple miners from the same IP from getting weights
+        if hasattr(self, 'enforce_unique_miner_ip') and self.enforce_unique_miner_ip:
+            raw_weights = self._apply_ip_deduplication_to_weights(raw_weights)
 
         bittensor.logging.debug("raw_weights", raw_weights)
         bittensor.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
