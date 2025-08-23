@@ -192,9 +192,7 @@ class TestValidator:
         result = Validator.parse_responses(miner_predictions, prediction_requests)
 
         assert len(result["1234567890::hourly"]) == 2
-        miner_uids = [
-            pred.miner_uid for pred in result["1234567890::hourly"]
-        ]
+        miner_uids = [pred.miner_uid for pred in result["1234567890::hourly"]]
         assert 1 in miner_uids
         assert 2 in miner_uids
 
@@ -204,7 +202,7 @@ class TestValidator:
     ):
         """Test sending predictions to miners via utils module."""
         from candles.validator.utils import send_predictions_to_miners
-        
+
         # Setup mock axons
         mock_axon1 = MagicMock()
         mock_axon2 = MagicMock()
@@ -217,17 +215,19 @@ class TestValidator:
         miner_uids = [0, 1]
         input_synapse = GetCandlePrediction(candle_prediction=sample_candle_prediction)
 
-        with patch('candles.validator.utils.process_miner_requests') as mock_process:
+        with patch("candles.validator.utils.process_miner_requests") as mock_process:
             mock_process.return_value = (mock_responses, miner_uids)
-            
+
             responses, returned_uids = await send_predictions_to_miners(
                 validator=validator_instance,
                 input_synapse=input_synapse,
-                batch_uids=miner_uids
+                batch_uids=miner_uids,
             )
 
             # Verify the function was called
-            mock_process.assert_called_once_with(validator_instance, miner_uids, input_synapse)
+            mock_process.assert_called_once_with(
+                validator_instance, miner_uids, input_synapse
+            )
             assert responses == mock_responses
             assert returned_uids == miner_uids
 
@@ -273,7 +273,6 @@ class TestValidator:
                     with patch.object(
                         validator_instance, "save"
                     ) as mock_save_blacklist:
-
                         mock_get_requests.return_value = [sample_candle_prediction]
                         mock_get_miners.return_value = [1, 2]
                         mock_gather.return_value = ([MagicMock()], [1, 2])
@@ -294,14 +293,14 @@ class TestValidator:
         mock_axon2.ip = "192.168.1.100"  # Same IP as axon1
         mock_axon3 = MagicMock()
         mock_axon3.ip = "192.168.1.101"  # Different IP
-        
+
         validator_instance.metagraph.axons = [mock_axon1, mock_axon2, mock_axon3]
         validator_instance.enforce_unique_miner_ip = True
-        
+
         # Test with UIDs [0, 1, 2] where 0 and 1 share the same IP
         test_uids = [0, 1, 2]
         filtered_uids = validator_instance._filter_uids_by_unique_ip(test_uids)
-        
+
         # Should keep UID 0 (first occurrence) and UID 2 (different IP)
         # UID 1 should be dropped as it shares IP with UID 0
         assert 0 in filtered_uids
@@ -312,11 +311,11 @@ class TestValidator:
     def test_ip_deduplication_disabled(self, validator_instance):
         """Test that IP deduplication is not applied when disabled."""
         validator_instance.enforce_unique_miner_ip = False
-        
+
         # When disabled, the forward method should not call _filter_uids_by_unique_ip
         # So we test that the method itself works correctly but is not called
         test_uids = [0, 1, 2]
-        
+
         # Mock the metagraph to have axons with IPs
         mock_axon1 = MagicMock()
         mock_axon1.ip = "192.168.1.100"
@@ -324,13 +323,13 @@ class TestValidator:
         mock_axon2.ip = "192.168.1.100"  # Same IP as axon1
         mock_axon3 = MagicMock()
         mock_axon3.ip = "192.168.1.101"  # Different IP
-        
+
         validator_instance.metagraph.axons = [mock_axon1, mock_axon2, mock_axon3]
-        
+
         # Even when disabled, the method should still work if called directly
         # (this tests the method's internal logic)
         filtered_uids = validator_instance._filter_uids_by_unique_ip(test_uids)
-        
+
         # The method should still deduplicate by IP regardless of the flag
         # The flag only controls whether the method is called in forward()
         assert 0 in filtered_uids
@@ -343,8 +342,10 @@ class TestValidator:
         self, validator_instance, sample_candle_prediction
     ):
         """Test gathering predictions from miners via utils module."""
-        
-        with patch('candles.validator.validator.send_predictions_to_miners') as mock_send:
+
+        with patch(
+            "candles.validator.validator.send_predictions_to_miners"
+        ) as mock_send:
             mock_send.return_value = ([MagicMock(), MagicMock()], [1, 2])
 
             (
@@ -361,7 +362,6 @@ class TestValidator:
 
     def test_save_and_blacklist(self, validator_instance, sample_candle_prediction):
         with patch.object(Validator, "parse_responses") as mock_parse:
-
             mock_parse.return_value = {"interval_1": {"predictions": []}}
             finished_responses = [MagicMock()]
             working_miner_uids = [1, 2]
@@ -379,12 +379,10 @@ class TestValidator:
                 {"interval_1": {"predictions": []}}
             )
 
-
     def test_save_and_blacklist_all_miners_working(
         self, validator_instance, sample_candle_prediction
     ):
         with patch.object(Validator, "parse_responses") as mock_parse:
-
             mock_parse.return_value = {"interval_1": {"predictions": []}}
             finished_responses = [MagicMock()]
             working_miner_uids = [1, 2, 3]
@@ -416,7 +414,7 @@ class TestValidator:
         # Filter out None values since methods return None when no intervals are closed
         non_none_results = [interval for interval in result if interval is not None]
         assert len(non_none_results) == 3
-        
+
         # Check that we have one of each interval type
         interval_types = [interval.split("::")[-1] for interval in non_none_results]
         assert TimeInterval.HOURLY in interval_types
@@ -446,7 +444,9 @@ class TestValidator:
 
         # Should return the 11:00-12:00 interval as a string
         expected_prev_hour = datetime(2023, 1, 1, 11, 0, 0, tzinfo=timezone.utc)
-        expected_interval_id = f"{int(expected_prev_hour.timestamp())}::{TimeInterval.HOURLY}"
+        expected_interval_id = (
+            f"{int(expected_prev_hour.timestamp())}::{TimeInterval.HOURLY}"
+        )
         assert result == expected_interval_id
 
     def test_get_closed_hourly_intervals_empty_at_hour_start(self):
@@ -467,7 +467,9 @@ class TestValidator:
 
         # Should return the previous day (Jan 1) as a string
         expected_prev_day = datetime(2023, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-        expected_interval_id = f"{int(expected_prev_day.timestamp())}::{TimeInterval.DAILY}"
+        expected_interval_id = (
+            f"{int(expected_prev_day.timestamp())}::{TimeInterval.DAILY}"
+        )
         assert result == expected_interval_id
 
     def test_get_closed_daily_intervals_empty_at_day_start(self):
@@ -489,7 +491,9 @@ class TestValidator:
 
         # Should return the previous week (starting Dec 26, 2022) as a string
         expected_prev_week = datetime(2022, 12, 26, 0, 0, 0, tzinfo=timezone.utc)
-        expected_interval_id = f"{int(expected_prev_week.timestamp())}::{TimeInterval.WEEKLY}"
+        expected_interval_id = (
+            f"{int(expected_prev_week.timestamp())}::{TimeInterval.WEEKLY}"
+        )
         assert result == expected_interval_id
 
     def test_get_closed_weekly_intervals_empty_at_week_start(self):
@@ -512,18 +516,43 @@ class TestValidator:
 
         # Should return the previous week (starting Dec 26, 2022) as a string
         expected_prev_week = datetime(2022, 12, 26, 0, 0, 0, tzinfo=timezone.utc)
-        expected_interval_id = f"{int(expected_prev_week.timestamp())}::{TimeInterval.WEEKLY}"
+        expected_interval_id = (
+            f"{int(expected_prev_week.timestamp())}::{TimeInterval.WEEKLY}"
+        )
         assert result == expected_interval_id
 
-    @pytest.mark.parametrize("test_time,expected_intervals", [
-        # Test various times and expected closed intervals
-        (datetime(2023, 1, 2, 10, 30, 0, tzinfo=timezone.utc), 3),  # Monday 10:30 AM (all intervals closed)
-        (datetime(2023, 1, 2, 0, 30, 0, tzinfo=timezone.utc), 3),   # Monday 12:30 AM (all intervals closed)
-        (datetime(2023, 1, 1, 12, 30, 0, tzinfo=timezone.utc), 3),  # Sunday 12:30 PM (all intervals closed)
-        (datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc), 0),    # Monday midnight (none - exact boundary)
-    ], ids=["monday_morning", "monday_past_midnight", "sunday_afternoon", "monday_midnight"])
+    @pytest.mark.parametrize(
+        "test_time,expected_intervals",
+        [
+            # Test various times and expected closed intervals
+            (
+                datetime(2023, 1, 2, 10, 30, 0, tzinfo=timezone.utc),
+                3,
+            ),  # Monday 10:30 AM (all intervals closed)
+            (
+                datetime(2023, 1, 2, 0, 30, 0, tzinfo=timezone.utc),
+                3,
+            ),  # Monday 12:30 AM (all intervals closed)
+            (
+                datetime(2023, 1, 1, 12, 30, 0, tzinfo=timezone.utc),
+                3,
+            ),  # Sunday 12:30 PM (all intervals closed)
+            (
+                datetime(2023, 1, 2, 0, 0, 0, tzinfo=timezone.utc),
+                0,
+            ),  # Monday midnight (none - exact boundary)
+        ],
+        ids=[
+            "monday_morning",
+            "monday_past_midnight",
+            "sunday_afternoon",
+            "monday_midnight",
+        ],
+    )
     @patch("candles.validator.validator.datetime")
-    def test_intervals_to_score_parametrized_scenarios(self, mock_datetime, test_time, expected_intervals):
+    def test_intervals_to_score_parametrized_scenarios(
+        self, mock_datetime, test_time, expected_intervals
+    ):
         """Test _intervals_to_score with various time scenarios."""
         mock_datetime.now.return_value = test_time
 

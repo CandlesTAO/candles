@@ -5,8 +5,6 @@ import bittensor
 from ..core.storage.json_storage import BaseJsonStorage
 
 
-
-
 class JsonValidatorStorage(BaseJsonStorage):
     """Handles storage and retrieval of validator predictions in JSON format.
 
@@ -16,7 +14,9 @@ class JsonValidatorStorage(BaseJsonStorage):
     def __init__(self, config: Optional["bittensor.config"] = None):
         super().__init__(config)
         self.validator_id = self.generate_user_id(config)
-        bittensor.logging.info(f"Initialized validator storage with ID: {self.validator_id}")
+        bittensor.logging.info(
+            f"Initialized validator storage with ID: {self.validator_id}"
+        )
 
     def save_predictions(self, new_predictions: dict) -> None:
         """Save the validator predictions to a single JSON file.
@@ -35,16 +35,27 @@ class JsonValidatorStorage(BaseJsonStorage):
             except json.JSONDecodeError:
                 existing_predictions = {}
 
-        existing_predictions_by_interval = self._group_predictions_by_interval(existing_predictions)
+        existing_predictions_by_interval = self._group_predictions_by_interval(
+            existing_predictions
+        )
 
         # Log the number of predictions being saved
         total_new_predictions = sum(
-            len(new_predictions[interval_id]['predictions'] if isinstance(new_predictions[interval_id], dict) and 'predictions' in new_predictions[interval_id] else new_predictions[interval_id])
+            len(
+                new_predictions[interval_id]["predictions"]
+                if isinstance(new_predictions[interval_id], dict)
+                and "predictions" in new_predictions[interval_id]
+                else new_predictions[interval_id]
+            )
             for interval_id in new_predictions
         )
-        bittensor.logging.debug(f"Saving {total_new_predictions} new predictions across {len(new_predictions)} intervals")
+        bittensor.logging.debug(
+            f"Saving {total_new_predictions} new predictions across {len(new_predictions)} intervals"
+        )
 
-        merged_predictions = self._merge_new_with_existing_predictions(existing_predictions_by_interval, new_predictions)
+        merged_predictions = self._merge_new_with_existing_predictions(
+            existing_predictions_by_interval, new_predictions
+        )
 
         # bittensor.logging.info(f"Saving merged predictions: {merged_predictions}")
         self.save_data(data=merged_predictions, prefix=prefix)
@@ -64,7 +75,9 @@ class JsonValidatorStorage(BaseJsonStorage):
             return {}
 
         # If predictions is already in the correct format, return it
-        if all(isinstance(v, dict) and "predictions" in v for v in predictions.values()):
+        if all(
+            isinstance(v, dict) and "predictions" in v for v in predictions.values()
+        ):
             return predictions
 
         predictions_by_interval = {}
@@ -72,10 +85,18 @@ class JsonValidatorStorage(BaseJsonStorage):
             if isinstance(data, dict) and "predictions" in data:
                 predictions_by_interval[interval_id] = data["predictions"]
             else:
-                predictions_by_interval[interval_id] = data if isinstance(data, list) else [data] if data is not None else []
+                predictions_by_interval[interval_id] = (
+                    data
+                    if isinstance(data, list)
+                    else [data]
+                    if data is not None
+                    else []
+                )
         return predictions_by_interval
 
-    def _merge_new_with_existing_predictions(self, existing_predictions_by_interval: dict, new_predictions: dict) -> dict:
+    def _merge_new_with_existing_predictions(
+        self, existing_predictions_by_interval: dict, new_predictions: dict
+    ) -> dict:
         """Merges new predictions into the existing predictions grouped by interval.
 
         Adds new predictions to the appropriate interval group, overwriting existing predictions
@@ -86,7 +107,12 @@ class JsonValidatorStorage(BaseJsonStorage):
             new_predictions: A dictionary of new prediction dictionaries to merge.
         """
         for interval_id in new_predictions:
-            new_predictions_list = new_predictions[interval_id]['predictions'] if isinstance(new_predictions[interval_id], dict) and 'predictions' in new_predictions[interval_id] else new_predictions[interval_id]
+            new_predictions_list = (
+                new_predictions[interval_id]["predictions"]
+                if isinstance(new_predictions[interval_id], dict)
+                and "predictions" in new_predictions[interval_id]
+                else new_predictions[interval_id]
+            )
 
             if interval_id in existing_predictions_by_interval:
                 existing_predictions = existing_predictions_by_interval[interval_id]
@@ -103,18 +129,28 @@ class JsonValidatorStorage(BaseJsonStorage):
                     new_prediction_id = prediction_dict.get("prediction_id")
 
                     # Count existing predictions that will be removed (same miner_uid AND prediction_id)
-                    removed_count = len([
-                        pred for pred in existing_predictions
-                        if pred.get("miner_uid") == new_miner_uid and pred.get("prediction_id") == new_prediction_id
-                    ])
+                    removed_count = len(
+                        [
+                            pred
+                            for pred in existing_predictions
+                            if pred.get("miner_uid") == new_miner_uid
+                            and pred.get("prediction_id") == new_prediction_id
+                        ]
+                    )
 
                     if removed_count > 0:
-                        bittensor.logging.debug(f"Removing {removed_count} duplicate predictions for miner_uid={new_miner_uid}, prediction_id={new_prediction_id}")
+                        bittensor.logging.debug(
+                            f"Removing {removed_count} duplicate predictions for miner_uid={new_miner_uid}, prediction_id={new_prediction_id}"
+                        )
 
                     # Remove existing prediction with same miner_uid AND prediction_id if it exists
                     existing_predictions = [
-                        pred for pred in existing_predictions
-                        if not (pred.get("miner_uid") == new_miner_uid and pred.get("prediction_id") == new_prediction_id)
+                        pred
+                        for pred in existing_predictions
+                        if not (
+                            pred.get("miner_uid") == new_miner_uid
+                            and pred.get("prediction_id") == new_prediction_id
+                        )
                     ]
 
                     # Add the new prediction
@@ -155,4 +191,3 @@ class JsonValidatorStorage(BaseJsonStorage):
         prefix = f"{self.validator_id}_predictions"
         predictions = self.load_data(prefix=prefix)
         return [] if predictions is None else predictions.get(interval_id, [])
-

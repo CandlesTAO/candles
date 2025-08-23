@@ -4,7 +4,13 @@ import pandas as pd
 from ..core.data import CandlePrediction, TimeInterval
 from ..core.utils import get_next_timestamp_by_interval
 
-def get_file_predictions(filename="hourly_predictions.csv", interval=TimeInterval.HOURLY, miner_uid=None, hotkey=None) -> list[CandlePrediction]:
+
+def get_file_predictions(
+    filename="hourly_predictions.csv",
+    interval=TimeInterval.HOURLY,
+    miner_uid=None,
+    hotkey=None,
+) -> list[CandlePrediction]:
     """
     Reads candle predictions from a CSV file and converts them to CandlePrediction objects.
 
@@ -41,7 +47,7 @@ def get_file_predictions(filename="hourly_predictions.csv", interval=TimeInterva
 
     # Filter predictions to only include those with timestamps >= next_timestamp
     # This ensures we only return predictions for intervals that haven't started yet
-    predictions: pd.DataFrame = predictions[predictions['timestamp'] >= next_timestamp]
+    predictions: pd.DataFrame = predictions[predictions["timestamp"] >= next_timestamp]
 
     # Convert the filtered DataFrame to a list of dictionaries
     # Each dictionary represents one row from the CSV with column names as keys
@@ -58,7 +64,7 @@ def get_file_predictions(filename="hourly_predictions.csv", interval=TimeInterva
             timestamp=prediction["timestamp"],
             interval=interval,  # Add the specified interval
             miner_uid=miner_uid,  # Add the miner UID
-            hotkey=hotkey  # Add the miner hotkey
+            hotkey=hotkey,  # Add the miner hotkey
         )
         for prediction in predictions
     ]
@@ -67,8 +73,10 @@ def get_file_predictions(filename="hourly_predictions.csv", interval=TimeInterva
     # These can be used by the miner to respond to validator prediction requests
     return predictions
 
-def get_random_prediction(interval=TimeInterval.HOURLY, miner_uid=None, hotkey=None) -> CandlePrediction:
 
+def get_random_prediction(
+    interval=TimeInterval.HOURLY, miner_uid=None, hotkey=None
+) -> CandlePrediction:
     import random
     from decimal import Decimal
     from ..core.data import CandleColor
@@ -87,9 +95,14 @@ def get_random_prediction(interval=TimeInterval.HOURLY, miner_uid=None, hotkey=N
     confidence = Decimal(str(random.uniform(0.5, 1.0)))
     bittensor.logging.debug(f"Generated confidence: {confidence}")
     interval_id = f"{get_next_timestamp_by_interval(interval)}::{interval}"
-    return build_prediction(price, color, confidence, interval, interval_id, miner_uid, hotkey)
+    return build_prediction(
+        price, color, confidence, interval, interval_id, miner_uid, hotkey
+    )
 
-def build_prediction(price, color, confidence, interval, timestamp, miner_uid, hotkey) -> CandlePrediction:
+
+def build_prediction(
+    price, color, confidence, interval, timestamp, miner_uid, hotkey
+) -> CandlePrediction:
     """
     Builds a CandlePrediction object from the provided parameters.
 
@@ -126,13 +139,15 @@ def build_prediction(price, color, confidence, interval, timestamp, miner_uid, h
     # Construct and return a new CandlePrediction object with all the provided parameters
     # This creates a complete prediction that can be sent to validators
     return CandlePrediction(
-        price=price,                    # The predicted price value
-        color=color,                    # The normalized candle color enum
-        confidence=confidence,          # The confidence level of the prediction
+        price=price,  # The predicted price value
+        color=color,  # The normalized candle color enum
+        confidence=confidence,  # The confidence level of the prediction
         prediction_id=int(timestamp),
-        prediction_date=datetime.now(timezone.utc),  # Current UTC timestamp when prediction was made
-        interval=interval,              # The time interval for this prediction
+        prediction_date=datetime.now(
+            timezone.utc
+        ),  # Current UTC timestamp when prediction was made
+        interval=interval,  # The time interval for this prediction
         interval_id=f"{timestamp}::{interval}",  # Unique identifier combining timestamp and interval
-        miner_uid=miner_uid,            # The UID of the miner making this prediction
-        hotkey=hotkey,                  # The hotkey of the miner making this prediction
+        miner_uid=miner_uid,  # The UID of the miner making this prediction
+        hotkey=hotkey,  # The hotkey of the miner making this prediction
     )

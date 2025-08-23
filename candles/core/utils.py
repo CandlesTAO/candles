@@ -27,8 +27,10 @@ from math import floor
 from typing import Callable, Any
 from functools import lru_cache, update_wrapper
 import threading
+
 # Bittensor
 import bittensor as bt
+
 
 def is_miner(uid: int, metagraph: bt.metagraph) -> bool:
     """Checks if a UID on the subnet is a miner."""
@@ -36,6 +38,8 @@ def is_miner(uid: int, metagraph: bt.metagraph) -> bool:
     # This explicilty disallows validator/miner hybrids.
 
     return metagraph.Tv[uid] == 0
+
+
 def get_next_timestamp_by_interval(interval: str):
     """
     Get the next timestamp by interval.
@@ -48,26 +52,31 @@ def get_next_timestamp_by_interval(interval: str):
     match interval:
         case TimeInterval.HOURLY:
             # For hourly, set to current hour + 1 hour
-            next_timestamp = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+            next_timestamp = now.replace(minute=0, second=0, microsecond=0) + timedelta(
+                hours=1
+            )
         case TimeInterval.DAILY:
             # For daily, set to next midnight UTC
-            next_timestamp = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+            next_timestamp = now.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) + timedelta(days=1)
         case TimeInterval.WEEKLY:
             # For weekly, set to next Monday at midnight UTC
             days_until_monday = (7 - now.weekday()) % 7
             if days_until_monday == 0:  # If today is Monday, go to next Monday
                 days_until_monday = 7
-            next_timestamp = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=days_until_monday)
+            next_timestamp = now.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ) + timedelta(days=days_until_monday)
         case _:
             raise ValueError(f"Invalid interval: {interval}")
 
     return int(next_timestamp.timestamp())
 
+
 def is_cuda_available():
     try:
-        output = subprocess.check_output(
-            ["nvidia-smi", "-L"], stderr=subprocess.STDOUT
-        )
+        output = subprocess.check_output(["nvidia-smi", "-L"], stderr=subprocess.STDOUT)
         if "NVIDIA" in output.decode("utf-8"):
             return "cuda"
     except Exception:
@@ -79,6 +88,7 @@ def is_cuda_available():
     except Exception:
         pass
     return "cpu"
+
 
 def check_config(cls, config: "bt.Config"):
     r"""Checks/validates the config namespace object."""
@@ -101,7 +111,7 @@ def add_args(cls, parser):
     Adds relevant arguments to the parser for operation.
     """
 
-    parser.add_argument("--netuid", type=int, help="Subnet netuid", default=1)
+    parser.add_argument("--netuid", type=int, help="Subnet netuid", default=31)
 
     parser.add_argument(
         "--neuron.device",
@@ -269,9 +279,6 @@ def config(cls):
     return bt.config(parser)
 
 
-
-
-
 # LRU Cache with TTL
 def ttl_cache(maxsize: int = 128, typed: bool = False, ttl: int = -1):
     """
@@ -340,6 +347,7 @@ def _ttl_hash_gen(seconds: int):
 # 12 seconds updating block.
 _block_lock = threading.Lock()
 
+
 @ttl_cache(maxsize=1, ttl=12)
 def ttl_get_block(self) -> int:
     """
@@ -363,8 +371,12 @@ def ttl_get_block(self) -> int:
         try:
             return self.subtensor.get_current_block()
         except Exception as e:
-            if "cannot call recv while another thread is already running recv" in str(e):
-                bt.logging.warning(f"WebSocket concurrency error caught, retrying after brief delay: {e}")
+            if "cannot call recv while another thread is already running recv" in str(
+                e
+            ):
+                bt.logging.warning(
+                    f"WebSocket concurrency error caught, retrying after brief delay: {e}"
+                )
                 time.sleep(0.1)
                 return self.subtensor.get_current_block()
             else:

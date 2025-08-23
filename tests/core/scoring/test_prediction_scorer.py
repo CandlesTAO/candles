@@ -58,7 +58,7 @@ class TestPredictionScorer:
         """Test scoring with provided actual data."""
         # Mock the price client to return the sample data
         mock_price_client.get_price_by_interval.return_value = sample_ohlc_data
-        
+
         result = await prediction_scorer.score_prediction(
             sample_prediction, actual_ohlc=sample_ohlc_data
         )
@@ -81,7 +81,9 @@ class TestPredictionScorer:
         """Test scoring by fetching actual data from price client."""
         mock_price_client.get_price_by_interval.return_value = sample_ohlc_data
 
-        result = await prediction_scorer.score_prediction(sample_prediction, actual_ohlc=sample_ohlc_data)
+        result = await prediction_scorer.score_prediction(
+            sample_prediction, actual_ohlc=sample_ohlc_data
+        )
 
         # Since actual_ohlc is provided directly, the price client need not be called.
         mock_price_client.get_price_by_interval.assert_not_called()

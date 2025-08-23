@@ -9,6 +9,7 @@ from ..data import CandlesBaseModel
 
 class CandleTAOPredictionSubmission(CandlesBaseModel):
     """Model for prediction submission data matching PredictionDataSchema"""
+
     prediction_id: int
     miner_uid: int
     hotkey: str
@@ -25,6 +26,7 @@ class CandleTAOPredictionSubmission(CandlesBaseModel):
 
 class CandleTAOScoreSubmission(CandlesBaseModel):
     """Model for score submission data matching ScoreDataSchema"""
+
     prediction_id: int
     miner_uid: int
     network: str = "mainnet"
@@ -40,6 +42,7 @@ class CandleTAOScoreSubmission(CandlesBaseModel):
 
 class CandleTAOMinerScoreSubmission(CandlesBaseModel):
     """Model for miner score submission data matching MinerScoreUpdateSchema"""
+
     miner_uid: int
     score: float
     last_scored_prediction_id: int
@@ -67,7 +70,11 @@ class CandleTAOClient:
             base = domain
         else:
             # Default to https for domain names, http for localhost/IPs
-            protocol = "http" if domain == "localhost" or domain.replace(".", "").isdigit() else "https"
+            protocol = (
+                "http"
+                if domain == "localhost" or domain.replace(".", "").isdigit()
+                else "https"
+            )
             base = f"{protocol}://{domain}"
 
         return (
@@ -93,7 +100,9 @@ class CandleTAOClient:
         """Get the full miner scores endpoint URL"""
         return f"{self.base_url}/api/predictions/miner-scores"
 
-    async def submit_predictions(self, predictions: list[CandleTAOPredictionSubmission]) -> dict[str, Any]:
+    async def submit_predictions(
+        self, predictions: list[CandleTAOPredictionSubmission]
+    ) -> dict[str, Any]:
         """
         Submit a batch of predictions to the CandleTAO API
 
@@ -109,20 +118,18 @@ class CandleTAOClient:
         """
         headers = {
             "Authorization": f"Bearer {self.bearer_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         # Convert predictions to dict format for JSON serialization
         # The API expects each prediction to be a separate object in the data list
         payload = {
-            "data": [prediction.model_dump(mode='json') for prediction in predictions]
+            "data": [prediction.model_dump(mode="json") for prediction in predictions]
         }
 
         async with aiohttp.ClientSession(timeout=self.timeout) as session:
             async with session.post(
-                self.predictions_endpoint,
-                headers=headers,
-                json=payload
+                self.predictions_endpoint, headers=headers, json=payload
             ) as response:
                 if response.status >= 400:
                     error_text = await response.text()
@@ -130,7 +137,7 @@ class CandleTAOClient:
                         request_info=response.request_info,
                         history=response.history,
                         status=response.status,
-                        message=f"API request failed: {error_text}"
+                        message=f"API request failed: {error_text}",
                     )
 
                 try:
@@ -138,7 +145,9 @@ class CandleTAOClient:
                 except json.JSONDecodeError as e:
                     raise ValueError(f"Invalid JSON response from API: {e}")
 
-    async def submit_scores(self, scores: list[CandleTAOScoreSubmission]) -> dict[str, Any]:
+    async def submit_scores(
+        self, scores: list[CandleTAOScoreSubmission]
+    ) -> dict[str, Any]:
         """
         Submit a batch of prediction scores to the CandleTAO API
 
@@ -154,7 +163,7 @@ class CandleTAOClient:
         """
         headers = {
             "Authorization": f"Bearer {self.bearer_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         # Convert scores to dict format for JSON serialization
@@ -162,8 +171,8 @@ class CandleTAOClient:
         payload = {
             "data": [
                 {
-                    **score.model_dump(mode='json'),
-                    "submission_timestamp": [datetime.utcnow().isoformat()]
+                    **score.model_dump(mode="json"),
+                    "submission_timestamp": [datetime.utcnow().isoformat()],
                 }
                 for score in scores
             ]
@@ -171,9 +180,7 @@ class CandleTAOClient:
 
         async with aiohttp.ClientSession(timeout=self.timeout) as session:
             async with session.post(
-                self.scores_endpoint,
-                headers=headers,
-                json=payload
+                self.scores_endpoint, headers=headers, json=payload
             ) as response:
                 if response.status >= 400:
                     error_text = await response.text()
@@ -181,7 +188,7 @@ class CandleTAOClient:
                         request_info=response.request_info,
                         history=response.history,
                         status=response.status,
-                        message=f"API request failed: {error_text}"
+                        message=f"API request failed: {error_text}",
                     )
 
                 try:
@@ -189,7 +196,9 @@ class CandleTAOClient:
                 except json.JSONDecodeError as e:
                     raise ValueError(f"Invalid JSON response from API: {e}")
 
-    async def submit_single_score(self, score: CandleTAOScoreSubmission) -> dict[str, Any]:
+    async def submit_single_score(
+        self, score: CandleTAOScoreSubmission
+    ) -> dict[str, Any]:
         """
         Submit a single prediction score
 
@@ -201,7 +210,9 @@ class CandleTAOClient:
         """
         return await self.submit_scores([score])
 
-    async def submit_miner_scores(self, miner_scores: list[CandleTAOMinerScoreSubmission]) -> dict[str, Any]:
+    async def submit_miner_scores(
+        self, miner_scores: list[CandleTAOMinerScoreSubmission]
+    ) -> dict[str, Any]:
         """
         Submit a batch of miner scores to the CandleTAO API
 
@@ -217,20 +228,20 @@ class CandleTAOClient:
         """
         headers = {
             "Authorization": f"Bearer {self.bearer_token}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         # Convert miner scores to dict format for JSON serialization
         # The API expects the data structure to match MinerScoreUpdateSchema
         payload = {
-            "data": [miner_score.model_dump(mode='json') for miner_score in miner_scores]
+            "data": [
+                miner_score.model_dump(mode="json") for miner_score in miner_scores
+            ]
         }
 
         async with aiohttp.ClientSession(timeout=self.timeout) as session:
             async with session.post(
-                self.miner_scores_endpoint,
-                headers=headers,
-                json=payload
+                self.miner_scores_endpoint, headers=headers, json=payload
             ) as response:
                 if response.status >= 400:
                     error_text = await response.text()
@@ -238,7 +249,7 @@ class CandleTAOClient:
                         request_info=response.request_info,
                         history=response.history,
                         status=response.status,
-                        message=f"API request failed: {error_text}"
+                        message=f"API request failed: {error_text}",
                     )
 
                 try:
@@ -246,7 +257,9 @@ class CandleTAOClient:
                 except json.JSONDecodeError as e:
                     raise ValueError(f"Invalid JSON response from API: {e}")
 
-    async def submit_single_prediction(self, prediction: CandleTAOPredictionSubmission) -> dict[str, Any]:
+    async def submit_single_prediction(
+        self, prediction: CandleTAOPredictionSubmission
+    ) -> dict[str, Any]:
         """
         Submit a single prediction
 
@@ -260,7 +273,9 @@ class CandleTAOClient:
 
 
 # Convenience functions for quick submission
-async def submit_predictions(predictions: list[CandleTAOPredictionSubmission]) -> dict[str, Any]:
+async def submit_predictions(
+    predictions: list[CandleTAOPredictionSubmission],
+) -> dict[str, Any]:
     """
     Convenience function to submit predictions without managing client instance
 
@@ -274,7 +289,9 @@ async def submit_predictions(predictions: list[CandleTAOPredictionSubmission]) -
     return await client.submit_predictions(predictions)
 
 
-async def submit_prediction_scores(scores: list[CandleTAOScoreSubmission]) -> dict[str, Any]:
+async def submit_prediction_scores(
+    scores: list[CandleTAOScoreSubmission],
+) -> dict[str, Any]:
     """
     Convenience function to submit scores without managing client instance
 

@@ -59,6 +59,7 @@ def valid_input_synapse(valid_candle_prediction):
 @pytest.fixture
 def mock_response():
     from unittest.mock import create_autospec
+
     response = create_autospec(GetCandlePrediction, instance=True)
     response.candle_prediction = CandlePrediction(
         prediction_id=int(datetime.now(timezone.utc).timestamp()),
@@ -78,7 +79,9 @@ class TestGetMinerUids:
     def test_get_miner_uids_returns_miners_from_metagraph(self, mock_metagraph):
         """Test that get_miner_uids returns miners from the metagraph."""
         result = utils.get_miner_uids(mock_metagraph, my_uid=0)
-        assert result == [1]  # UID 1 is the only miner (Tv=0) and not excluded by my_uid
+        assert result == [
+            1
+        ]  # UID 1 is the only miner (Tv=0) and not excluded by my_uid
 
     def test_get_miner_uids_filters_miners_correctly(self, mock_metagraph):
         """Test that the function correctly filters miners from the metagraph."""
@@ -198,7 +201,7 @@ class TestProcessSingleResponse:
         # Set up the prediction to be within the valid window
         current_time = datetime.now(timezone.utc).replace(microsecond=0)
         mock_get_next_timestamp.return_value = int(current_time.timestamp())
-        
+
         # Set prediction_id to be exactly at the next timestamp (valid)
         mock_response.candle_prediction.prediction_id = int(current_time.timestamp())
 
@@ -210,9 +213,7 @@ class TestProcessSingleResponse:
         # Make sure the mock object behaves like the real datetime
         mock_datetime.timezone = timezone
 
-        result = utils.process_single_response(
-            mock_response, uid=123
-        )
+        result = utils.process_single_response(mock_response, uid=123)
 
         assert result is not None
         assert result.response == mock_response
@@ -227,9 +228,7 @@ class TestProcessSingleResponse:
             result = utils.process_single_response(None, uid=123)
 
             assert result is None
-            mock_log.assert_called_with(
-                "UID 123: Miner failed to respond"
-            )
+            mock_log.assert_called_with("UID 123: Miner failed to respond")
 
     def test_process_single_response_none_candle_prediction(self):
         """Test processing when candle_prediction is None."""
@@ -239,15 +238,11 @@ class TestProcessSingleResponse:
         response.axon.hotkey = "test_hotkey"
 
         with patch("bittensor.logging.debug") as mock_log:
-            result = utils.process_single_response(
-                response, uid=123
-            )
+            result = utils.process_single_response(response, uid=123)
 
             assert result is None
-            
-            mock_log.assert_called_with(
-                "UID 123: Miner failed to respond"
-            )
+
+            mock_log.assert_called_with("UID 123: Miner failed to respond")
 
     def test_process_single_response_none_axon(self, valid_candle_prediction):
         """Test processing when axon is None."""
@@ -256,15 +251,11 @@ class TestProcessSingleResponse:
         response.axon = None
 
         with patch("bittensor.logging.debug") as mock_log:
-            result = utils.process_single_response(
-                response, uid=123
-            )
+            result = utils.process_single_response(response, uid=123)
 
             assert result is None
-            
-            mock_log.assert_called_with(
-                "UID 123: Miner failed to respond"
-            )
+
+            mock_log.assert_called_with("UID 123: Miner failed to respond")
 
     def test_process_single_response_none_hotkey(self, valid_candle_prediction):
         """Test processing when hotkey is None."""
@@ -274,15 +265,11 @@ class TestProcessSingleResponse:
         response.axon.hotkey = None
 
         with patch("bittensor.logging.debug") as mock_log:
-            result = utils.process_single_response(
-                response, uid=123
-            )
+            result = utils.process_single_response(response, uid=123)
 
             assert result is None
-            
-            mock_log.assert_called_with(
-                "UID 123: Miner failed to respond"
-            )
+
+            mock_log.assert_called_with("UID 123: Miner failed to respond")
 
     @patch("candles.validator.utils.get_next_timestamp_by_interval")
     @patch("candles.validator.utils.datetime")
@@ -294,6 +281,7 @@ class TestProcessSingleResponse:
         mock_get_next_timestamp.return_value = int(current_time.timestamp())
 
         from unittest.mock import create_autospec
+
         response = create_autospec(GetCandlePrediction, instance=True)
         response.candle_prediction = CandlePrediction(
             prediction_id=int(current_time.timestamp()),
@@ -346,7 +334,7 @@ class TestProcessResponses:
         )
         axon1 = MagicMock()
         axon1.hotkey = "hotkey1"
-        response1.__dict__['axon'] = axon1
+        response1.__dict__["axon"] = axon1
 
         response2 = GetCandlePrediction()
         response2.candle_prediction = CandlePrediction(
@@ -358,7 +346,7 @@ class TestProcessResponses:
         )
         axon2 = MagicMock()
         axon2.hotkey = "hotkey2"
-        response2.__dict__['axon'] = axon2
+        response2.__dict__["axon"] = axon2
 
         mock_validator.dendrite.return_value = [response1, response2]
 
@@ -403,7 +391,7 @@ class TestProcessResponses:
         )
         axon1 = MagicMock()
         axon1.hotkey = "hotkey1"
-        response1.__dict__['axon'] = axon1
+        response1.__dict__["axon"] = axon1
 
         response2 = None
 

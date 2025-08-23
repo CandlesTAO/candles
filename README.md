@@ -61,7 +61,7 @@ A decentralized cryptocurrency candle prediction network built on Bittensor. Min
    - Install project dependencies
    - Create a custom miner script for your wallet/hotkey
    - Run tests to verify installation
-> [!NOTE]  
+> [!NOTE]
    > If you have issues with running your miner after using the setup script it is likely because you have an ipv6 address. You can fix this by running the following command:
    > ```bash
    > curl -4 ifconfig.me

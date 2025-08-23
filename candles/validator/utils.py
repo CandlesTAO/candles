@@ -37,7 +37,9 @@ def is_prediction_valid(prediction: CandlePrediction) -> bool:
     return prediction.color is not None
 
 
-def process_single_response(response: GetCandlePrediction, uid: int) -> ProcessedResponse | None:
+def process_single_response(
+    response: GetCandlePrediction, uid: int
+) -> ProcessedResponse | None:
     if (
         response is None
         or response.candle_prediction is None
@@ -45,9 +47,7 @@ def process_single_response(response: GetCandlePrediction, uid: int) -> Processe
         or response.axon.hotkey is None
         or not is_prediction_valid(response.candle_prediction)
     ):
-        bittensor.logging.debug(
-            f"UID {uid}: Miner failed to respond"
-        )
+        bittensor.logging.debug(f"UID {uid}: Miner failed to respond")
         return None
 
     response.candle_prediction.miner_uid = uid
@@ -58,14 +58,13 @@ def process_single_response(response: GetCandlePrediction, uid: int) -> Processe
 
     response.candle_prediction.confidence = round(
         response.candle_prediction.confidence, 4
-    ) # type: ignore
+    )  # type: ignore
     return ProcessedResponse(response=response, uid=uid)
 
 
 async def process_responses(
     batch_uids: list[int], validator, input_synapse: GetCandlePrediction
 ) -> tuple[list[CandlePrediction], list[int]]:
-
     responses = await validator.dendrite(
         axons=[validator.metagraph.axons[uid] for uid in batch_uids],
         synapse=input_synapse,
@@ -87,7 +86,9 @@ async def process_responses(
         if processed_response := process_single_response(response, uid):
             # Filter out responses whose interval_id does not match the request
             try:
-                actual_interval_id = processed_response.response.candle_prediction.interval_id  # type: ignore
+                actual_interval_id = (
+                    processed_response.response.candle_prediction.interval_id
+                )  # type: ignore
             except Exception:
                 actual_interval_id = None  # Defensive default
 
@@ -142,7 +143,6 @@ async def process_miner_requests(
         # This creates a slice of UIDs from the current position to the next batch boundary
         batch = batch_uids[i : i + validator.config.neuron.batch_size]
 
-
         # Send prediction requests to the current batch of miners
         # This awaits responses from all miners in the batch simultaneously
         finished_responses, working_miner_uids = await process_responses(
@@ -161,7 +161,9 @@ async def process_miner_requests(
 
     # Log completion status with summary of working miners
     # This provides visibility into the overall success rate of the prediction requests
-    bittensor.logging.info(f"Finished sending prediction requests to miners, [orange]working miners[/orange]: [magenta]{len(all_working_miner_uids)}[/magenta]")
+    bittensor.logging.info(
+        f"Finished sending prediction requests to miners, [orange]working miners[/orange]: [magenta]{len(all_working_miner_uids)}[/magenta]"
+    )
 
     # Return the aggregated results from all batches
     # This includes all successful predictions and the UIDs of responding miners

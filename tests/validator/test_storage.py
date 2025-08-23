@@ -23,7 +23,7 @@ def temp_storage_dir():
 def storage_with_temp_dir(temp_storage_dir):
     config = MagicMock()
     config.json_path = str(temp_storage_dir)
-    with patch('candles.validator.storage.BaseJsonStorage.__init__'):
+    with patch("candles.validator.storage.BaseJsonStorage.__init__"):
         storage = JsonValidatorStorage(config=config)
         storage.path = temp_storage_dir
         storage.validator_id = "test_validator_123"
@@ -66,9 +66,7 @@ class TestJsonValidatorStorage:
 
     def test_save_predictions_merges_with_existing(self, storage_with_temp_dir):
         # Mock existing data to be returned by load_data
-        existing_data = {
-            "interval_1": [{"close": 100.0}]
-        }
+        existing_data = {"interval_1": [{"close": 100.0}]}
         storage_with_temp_dir.load_data.return_value = existing_data
 
         # Save new predictions for same interval
@@ -83,7 +81,7 @@ class TestJsonValidatorStorage:
         storage_with_temp_dir.save_data.assert_called_once()
         call_args = storage_with_temp_dir.save_data.call_args[1]
         saved_data = call_args["data"]
-        
+
         assert "interval_1" in saved_data
         assert len(saved_data["interval_1"]) == 2
 
@@ -116,9 +114,7 @@ class TestJsonValidatorStorage:
         assert result is None
 
     def test_load_predictions_returns_saved_data(self, storage_with_temp_dir):
-        mock_data = {
-            "interval_1": [{"miner_uid": 1, "prediction": {"close": 100.0}}]
-        }
+        mock_data = {"interval_1": [{"miner_uid": 1, "prediction": {"close": 100.0}}]}
         storage_with_temp_dir.load_data.return_value = mock_data
 
         loaded_predictions = storage_with_temp_dir.load_predictions()
@@ -209,11 +205,7 @@ class TestJsonValidatorStorage:
         mock_prediction.dict.return_value = {"miner_uid": 1, "close": 100.0}
 
         existing = {}
-        new_predictions = {
-            "interval_1": {
-                "predictions": [mock_prediction]
-            }
-        }
+        new_predictions = {"interval_1": {"predictions": [mock_prediction]}}
 
         result = storage_with_temp_dir._merge_new_with_existing_predictions(
             existing, new_predictions
