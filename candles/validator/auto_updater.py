@@ -119,7 +119,7 @@ class AutoUpdater:
 
             if result.returncode != 0:
                 self.logger.warning(
-                    f"Failed to get origin/gus/feat/auto-update-for-validator commit: {result.stderr}"
+                    f"Failed to get origin/{self.auto_update_branch} commit: {result.stderr}"
                 )
                 return False, None
 
@@ -159,9 +159,8 @@ class AutoUpdater:
                 self.logger.error(f"Git fetch failed: {result.stderr}")
                 return False
 
-            # Reset to origin/main
             result = subprocess.run(
-                ["git", "reset", "--hard", "origin/gus/feat/auto-update-for-validator"],
+                ["git", "reset", "--hard", "origin/main"],
                 capture_output=True,
                 text=True,
                 cwd=os.getcwd(),

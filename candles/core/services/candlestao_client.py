@@ -5,6 +5,7 @@ import json
 from datetime import datetime
 
 from ..data import CandlesBaseModel
+from .. import __version__
 
 
 class CandleTAOPredictionSubmission(CandlesBaseModel):
@@ -22,6 +23,7 @@ class CandleTAOPredictionSubmission(CandlesBaseModel):
     color: str
     price: str
     confidence: str
+    validator_version: str = str(__version__)
 
 
 class CandleTAOScoreSubmission(CandlesBaseModel):
@@ -38,6 +40,7 @@ class CandleTAOScoreSubmission(CandlesBaseModel):
     actual_color: str
     actual_price: float
     timestamp: datetime
+    validator_version: str = str(__version__)
 
 
 class CandleTAOMinerScoreSubmission(CandlesBaseModel):
@@ -47,6 +50,7 @@ class CandleTAOMinerScoreSubmission(CandlesBaseModel):
     score: float
     last_scored_prediction_id: int
     network: str = "mainnet"
+    validator_version: str = str(__version__)
 
 
 class CandleTAOClient:
