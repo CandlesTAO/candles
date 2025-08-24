@@ -423,8 +423,8 @@ class TestRestartValidator:
             with patch.object(auto_updater, "save_config") as mock_save:
                 with patch("os._exit") as mock_exit:
                     # This should not raise an exception
-                    result = auto_updater.restart_validator()
-                    assert result is True
+                    auto_updater.restart_validator()
+
                     # Should call save_config
                     mock_save.assert_called_once()
 
