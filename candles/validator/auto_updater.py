@@ -26,7 +26,7 @@ class AutoUpdater:
 
     def __init__(
         self,
-        check_interval: int = 300,  # 5 minutes
+        check_interval: int = 3600,  # 1 hour
         config_file: str = "validator_config.json",
     ):
         """
@@ -43,6 +43,14 @@ class AutoUpdater:
         self.logger = logging.getLogger(__name__)
         self.auto_update_branch = os.getenv("AUTO_UPDATE_BRANCH", "main")
 
+        # Initialize config with only the attributes we need
+        self.config = {
+            "wallet_name": None,
+            "wallet_hotkey": None,
+            "last_update": None,
+            "previous_commit": None,
+        }
+
         self.load_config()
 
         self.current_commit = self.get_current_commit()
@@ -50,12 +58,19 @@ class AutoUpdater:
             self.logger.info(f"Current commit: {self.current_commit[:8]}")
 
     def load_config(self):
-        """Load validator configuration from file."""
+        """Load only the required validator configuration attributes from file."""
         try:
             if os.path.exists(self.config_file):
                 with open(self.config_file, "r") as f:
-                    self.config = json.load(f)
-                self.logger.info("Loaded existing validator configuration")
+                    full_config = json.load(f)
+                    # Only extract the specific attributes we need
+                    self.config = {
+                        "wallet_name": full_config.get("wallet_name"),
+                        "wallet_hotkey": full_config.get("wallet_hotkey"),
+                        "last_update": full_config.get("last_update"),
+                        "previous_commit": full_config.get("previous_commit"),
+                    }
+                self.logger.info("Loaded required validator configuration attributes")
             else:
                 self.config = {}
                 self.logger.info("No existing configuration found, will create new one")
@@ -64,11 +79,23 @@ class AutoUpdater:
             self.config = {}
 
     def save_config(self):
-        """Save current validator configuration to file."""
+        """Save only the required validator configuration attributes to file."""
         try:
+            # Read existing config to preserve other attributes
+            existing_config = {}
+            if os.path.exists(self.config_file):
+                try:
+                    with open(self.config_file, "r") as f:
+                        existing_config = json.load(f)
+                except Exception:
+                    pass  # If we can't read existing config, start fresh
+
+            # Update only our specific attributes
+            existing_config.update(self.config)
+
             with open(self.config_file, "w") as f:
-                json.dump(self.config, f, indent=2)
-            self.logger.info("Saved validator configuration")
+                json.dump(existing_config, f, indent=2)
+            self.logger.info("Saved required validator configuration attributes")
         except Exception as e:
             self.logger.error(f"Failed to save configuration: {e}")
 
@@ -195,15 +222,18 @@ class AutoUpdater:
             # Get command line arguments
             cmdline = process.cmdline()
 
-            # Extract wallet configuration from command line
             def extract_wallet_args(cmdline):
                 wallet_name = None
                 wallet_hotkey = None
                 for i, arg in enumerate(cmdline):
                     if arg == "--wallet.name" and i + 1 < len(cmdline):
                         wallet_name = cmdline[i + 1]
-                    elif arg == "--wallet.hotkey" and i + 1 < len(cmdline):
+                    elif arg.startswith("--wallet.name="):
+                        wallet_name = arg.split("=", 1)[1]
+                    if arg == "--wallet.hotkey" and i + 1 < len(cmdline):
                         wallet_hotkey = cmdline[i + 1]
+                    elif arg.startswith("--wallet.hotkey="):
+                        wallet_hotkey = arg.split("=", 1)[1]
                 return wallet_name, wallet_hotkey
 
             wallet_name, wallet_hotkey = extract_wallet_args(cmdline)
