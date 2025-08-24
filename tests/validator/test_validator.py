@@ -561,3 +561,472 @@ class TestValidator:
         # Filter out None values since methods return None when no intervals are closed
         non_none_results = [interval for interval in result if interval is not None]
         assert len(non_none_results) == expected_intervals
+
+
+class TestCandleTAODataConversion:
+    """Test suite for CandleTAO data conversion methods."""
+
+    @pytest.fixture
+    def sample_predictions_data(self):
+        """Sample predictions data for testing."""
+        return {
+            "1234567890::hourly": [
+                {
+                    "prediction_id": 1,
+                    "miner_uid": 1,
+                    "hotkey": "test_hotkey_1",
+                    "prediction_date": "2023-01-01T12:00:00Z",
+                    "is_closed": True,
+                    "closed_date": "2023-01-01T13:00:00Z",
+                    "interval": "hourly",
+                    "color": "red",
+                    "price": "100.50",
+                    "confidence": "0.85",
+                },
+                {
+                    "prediction_id": 2,
+                    "miner_uid": 2,
+                    "hotkey": "test_hotkey_2",
+                    "prediction_date": "2023-01-01T12:00:00Z",
+                    "is_closed": True,
+                    "closed_date": "2023-01-01T13:00:00Z",
+                    "interval": "hourly",
+                    "color": "green",
+                    "price": "101.00",
+                    "confidence": "0.90",
+                },
+            ],
+            "1234567890::daily": [
+                {
+                    "prediction_id": 3,
+                    "miner_uid": 1,
+                    "hotkey": "test_hotkey_1",
+                    "prediction_date": "2023-01-01T00:00:00Z",
+                    "is_closed": True,
+                    "closed_date": "2023-01-02T00:00:00Z",
+                    "interval": "daily",
+                    "color": "red",
+                    "price": "99.50",
+                    "confidence": "0.75",
+                },
+            ],
+        }
+
+    @pytest.fixture
+    def sample_scoring_results(self):
+        """Sample scoring results for testing."""
+
+        class MockScoringResult:
+            def __init__(self, **kwargs):
+                for key, value in kwargs.items():
+                    setattr(self, key, value)
+
+        return {
+            "1234567890::hourly": [
+                MockScoringResult(
+                    prediction_id=1,
+                    miner_uid=1,
+                    color_score=0.8,
+                    price_score=0.9,
+                    confidence_weight=0.5,
+                    final_score=0.85,
+                    actual_color="red",
+                    actual_price=100.0,
+                ),
+                MockScoringResult(
+                    prediction_id=2,
+                    miner_uid=2,
+                    color_score=0.9,
+                    price_score=0.8,
+                    confidence_weight=0.6,
+                    final_score=0.85,
+                    actual_color="green",
+                    actual_price=101.0,
+                ),
+            ],
+            "1234567890::daily": [
+                MockScoringResult(
+                    prediction_id=3,
+                    miner_uid=1,
+                    color_score=0.7,
+                    price_score=0.8,
+                    confidence_weight=0.4,
+                    final_score=0.75,
+                    actual_color="red",
+                    actual_price=99.0,
+                ),
+            ],
+        }
+
+    @pytest.fixture
+    def sample_miner_scores(self):
+        """Sample miner scores for testing."""
+        return {
+            1: 0.85,
+            2: 0.90,
+            3: 0.75,
+        }
+
+    def test_convert_predictions_to_candletao_format_includes_validator_version(
+        self, validator_instance, sample_predictions_data
+    ):
+        """Test that validator_version is properly included in all prediction submissions."""
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            submissions = validator_instance._convert_predictions_to_candletao_format(
+                sample_predictions_data
+            )
+
+        assert len(submissions) == 3
+
+        for submission in submissions:
+            assert hasattr(submission, "validator_version")
+            assert submission.validator_version == "2.0.15"
+            assert isinstance(submission.validator_version, str)
+
+    def test_convert_predictions_to_candletao_format_all_required_fields_present(
+        self, validator_instance, sample_predictions_data
+    ):
+        """Test that all required fields are present in prediction submissions."""
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            submissions = validator_instance._convert_predictions_to_candletao_format(
+                sample_predictions_data
+            )
+
+        required_fields = [
+            "prediction_id",
+            "miner_uid",
+            "hotkey",
+            "network",
+            "prediction_date",
+            "interval_id",
+            "is_closed",
+            "closed_date",
+            "interval",
+            "color",
+            "price",
+            "confidence",
+            "validator_version",
+        ]
+
+        for submission in submissions:
+            for field in required_fields:
+                assert hasattr(submission, field), f"Missing field: {field}"
+                assert getattr(submission, field) is not None, f"Field {field} is None"
+
+    def test_convert_predictions_to_candletao_format_correct_data_mapping(
+        self, validator_instance, sample_predictions_data
+    ):
+        """Test that data is correctly mapped from input to submission format."""
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            submissions = validator_instance._convert_predictions_to_candletao_format(
+                sample_predictions_data
+            )
+
+        # Check first submission
+        first_submission = submissions[0]
+        first_prediction = sample_predictions_data["1234567890::hourly"][0]
+
+        assert first_submission.prediction_id == first_prediction["prediction_id"]
+        assert first_submission.miner_uid == first_prediction["miner_uid"]
+        assert first_submission.hotkey == first_prediction["hotkey"]
+        assert first_submission.interval_id == "1234567890::hourly"
+        assert first_submission.interval == first_prediction["interval"]
+        assert first_submission.color == first_prediction["color"]
+        assert first_submission.price == str(first_prediction["price"])
+        assert first_submission.confidence == str(first_prediction["confidence"])
+
+    def test_convert_scores_to_candletao_format_includes_validator_version(
+        self, validator_instance, sample_scoring_results
+    ):
+        """Test that validator_version is properly included in all score submissions."""
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            submissions = validator_instance._convert_scores_to_candletao_format(
+                sample_scoring_results
+            )
+
+        assert len(submissions) == 3
+
+        for submission in submissions:
+            assert hasattr(submission, "validator_version")
+            assert submission.validator_version == "2.0.15"
+            assert isinstance(submission.validator_version, str)
+
+    def test_convert_scores_to_candletao_format_all_required_fields_present(
+        self, validator_instance, sample_scoring_results
+    ):
+        """Test that all required fields are present in score submissions."""
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            submissions = validator_instance._convert_scores_to_candletao_format(
+                sample_scoring_results
+            )
+
+        required_fields = [
+            "prediction_id",
+            "miner_uid",
+            "network",
+            "interval_id",
+            "color_score",
+            "price_score",
+            "confidence_weight",
+            "final_score",
+            "actual_color",
+            "actual_price",
+            "timestamp",
+            "validator_version",
+        ]
+
+        for submission in submissions:
+            for field in required_fields:
+                assert hasattr(submission, field), f"Missing field: {field}"
+                assert getattr(submission, field) is not None, f"Field {field} is None"
+
+    def test_convert_miner_scores_to_candletao_format_includes_validator_version(
+        self, validator_instance, sample_miner_scores
+    ):
+        """Test that validator_version is properly included in all miner score submissions."""
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            with patch.object(
+                validator_instance,
+                "_get_last_prediction_id_for_miner",
+                return_value=123,
+            ):
+                submissions = (
+                    validator_instance._convert_miner_scores_to_candletao_format(
+                        sample_miner_scores
+                    )
+                )
+
+        assert len(submissions) == 3
+
+        for submission in submissions:
+            assert hasattr(submission, "validator_version")
+            assert submission.validator_version == "2.0.15"
+            assert isinstance(submission.validator_version, str)
+
+    def test_convert_miner_scores_to_candletao_format_all_required_fields_present(
+        self, validator_instance, sample_miner_scores
+    ):
+        """Test that all required fields are present in miner score submissions."""
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            with patch.object(
+                validator_instance,
+                "_get_last_prediction_id_for_miner",
+                return_value=123,
+            ):
+                submissions = (
+                    validator_instance._convert_miner_scores_to_candletao_format(
+                        sample_miner_scores
+                    )
+                )
+
+        required_fields = [
+            "miner_uid",
+            "score",
+            "last_scored_prediction_id",
+            "network",
+            "validator_version",
+        ]
+
+        for submission in submissions:
+            for field in required_fields:
+                assert hasattr(submission, field), f"Missing field: {field}"
+                assert getattr(submission, field) is not None, f"Field {field} is None"
+
+    def test_convert_predictions_to_candletao_format_handles_missing_closed_date(
+        self, validator_instance
+    ):
+        """Test that missing closed_date is handled correctly."""
+        predictions_data = {
+            "1234567890::hourly": [
+                {
+                    "prediction_id": 1,
+                    "miner_uid": 1,
+                    "hotkey": "test_hotkey",
+                    "prediction_date": "2023-01-01T12:00:00Z",
+                    "is_closed": False,
+                    "closed_date": None,  # Missing closed_date
+                    "interval": "hourly",
+                    "color": "red",
+                    "price": "100.50",
+                    "confidence": "0.85",
+                }
+            ]
+        }
+
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            submissions = validator_instance._convert_predictions_to_candletao_format(
+                predictions_data
+            )
+
+        assert len(submissions) == 1
+        submission = submissions[0]
+        assert submission.closed_date is None
+        assert submission.validator_version == "2.0.15"
+
+    def test_convert_predictions_to_candletao_format_handles_malformed_data_gracefully(
+        self, validator_instance
+    ):
+        """Test that malformed data is handled gracefully without crashing."""
+        malformed_data = {
+            "1234567890::hourly": [
+                {
+                    "prediction_id": 1,
+                    "miner_uid": 1,
+                    "hotkey": "test_hotkey",
+                    "prediction_date": "invalid_date",  # Malformed date
+                    "is_closed": False,
+                    "closed_date": None,
+                    "interval": "hourly",
+                    "color": "red",
+                    "price": "100.50",
+                    "confidence": "0.85",
+                }
+            ]
+        }
+
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            with patch("bittensor.logging.error") as mock_log_error:
+                submissions = (
+                    validator_instance._convert_predictions_to_candletao_format(
+                        malformed_data
+                    )
+                )
+
+        # Should handle error gracefully and return empty list
+        assert len(submissions) == 0
+        mock_log_error.assert_called_once()
+
+    def test_convert_scores_to_candletao_format_handles_missing_data_gracefully(
+        self, validator_instance
+    ):
+        """Test that missing scoring data is handled gracefully."""
+        incomplete_results = {
+            "1234567890::hourly": [
+                # Missing some required attributes
+                type(
+                    "MockResult",
+                    (),
+                    {
+                        "prediction_id": 1,
+                        "miner_uid": 1,
+                        # Missing other required fields
+                    },
+                )()
+            ]
+        }
+
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            with patch("bittensor.logging.error") as mock_log_error:
+                submissions = validator_instance._convert_scores_to_candletao_format(
+                    incomplete_results
+                )
+
+        # Should handle error gracefully and return empty list
+        assert len(submissions) == 0
+        mock_log_error.assert_called_once()
+
+    def test_convert_miner_scores_to_candletao_format_handles_errors_gracefully(
+        self, validator_instance
+    ):
+        """Test that errors in miner score conversion are handled gracefully."""
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            with patch.object(
+                validator_instance,
+                "_get_last_prediction_id_for_miner",
+                side_effect=Exception("Test error"),
+            ):
+                with patch("bittensor.logging.error") as mock_log_error:
+                    submissions = (
+                        validator_instance._convert_miner_scores_to_candletao_format(
+                            {1: 0.85}
+                        )
+                    )
+
+        # Should handle error gracefully and return empty list
+        assert len(submissions) == 0
+        mock_log_error.assert_called_once()
+
+    def test_validator_version_is_consistent_across_all_models(
+        self,
+        validator_instance,
+        sample_predictions_data,
+        sample_scoring_results,
+        sample_miner_scores,
+    ):
+        """Test that validator_version is consistent across all model types."""
+        expected_version = "2.0.15"
+
+        with patch("candles.validator.validator.__version__", expected_version):
+            # Test predictions
+            prediction_submissions = (
+                validator_instance._convert_predictions_to_candletao_format(
+                    sample_predictions_data
+                )
+            )
+
+            # Test scores
+            score_submissions = validator_instance._convert_scores_to_candletao_format(
+                sample_scoring_results
+            )
+
+            # Test miner scores
+            with patch.object(
+                validator_instance,
+                "_get_last_prediction_id_for_miner",
+                return_value=123,
+            ):
+                miner_score_submissions = (
+                    validator_instance._convert_miner_scores_to_candletao_format(
+                        sample_miner_scores
+                    )
+                )
+
+        # All should have the same validator_version
+        for submission in prediction_submissions:
+            assert submission.validator_version == expected_version
+
+        for submission in score_submissions:
+            assert submission.validator_version == expected_version
+
+        for submission in miner_score_submissions:
+            assert submission.validator_version == expected_version
+
+    def test_network_field_is_correctly_set_based_on_config(
+        self, validator_instance, sample_miner_scores
+    ):
+        """Test that network field is correctly set based on validator config."""
+        # Test mainnet (netuid 31)
+        validator_instance.config.netuid = 31
+
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            with patch.object(
+                validator_instance,
+                "_get_last_prediction_id_for_miner",
+                return_value=123,
+            ):
+                submissions = (
+                    validator_instance._convert_miner_scores_to_candletao_format(
+                        sample_miner_scores
+                    )
+                )
+
+        for submission in submissions:
+            assert submission.network == "mainnet"
+
+        # Test testnet (netuid != 31)
+        validator_instance.config.netuid = 21
+
+        with patch("candles.validator.validator.__version__", "2.0.15"):
+            with patch.object(
+                validator_instance,
+                "_get_last_prediction_id_for_miner",
+                return_value=123,
+            ):
+                submissions = (
+                    validator_instance._convert_miner_scores_to_candletao_format(
+                        sample_miner_scores
+                    )
+                )
+
+        for submission in submissions:
+            assert submission.network == "testnet"

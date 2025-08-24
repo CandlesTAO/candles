@@ -12,8 +12,11 @@ from pydantic import (
 
 
 class CandlesBaseModel(BaseModel):
-    class Config:
-        use_enum_values = True
+    model_config = {
+        "use_enum_values": True,
+        # Ensure fields with default values are included in serialization
+        "exclude_unset": False,
+    }
 
 
 class CandleColor(StrEnum):

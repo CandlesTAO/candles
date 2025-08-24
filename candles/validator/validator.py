@@ -13,6 +13,7 @@ import aiofiles
 import numpy as np
 from ..core.data import CandlePrediction, TimeInterval
 from ..core.synapse import GetCandlePrediction
+from ..core import __version__
 
 
 # Bittensor
@@ -490,6 +491,7 @@ class Validator(BaseValidatorNeuron):
                         color=prediction_dict["color"],
                         price=str(prediction_dict["price"]),
                         confidence=str(prediction_dict["confidence"]),
+                        validator_version=str(__version__),
                     )
                     submissions.append(submission)
                 except Exception as e:
@@ -522,6 +524,7 @@ class Validator(BaseValidatorNeuron):
                         actual_color=result.actual_color,
                         actual_price=result.actual_price,
                         timestamp=timestamp,
+                        validator_version=str(__version__),
                     )
                     submissions.append(submission)
                 except Exception as e:
@@ -692,6 +695,7 @@ class Validator(BaseValidatorNeuron):
                     score=score,
                     last_scored_prediction_id=last_prediction_id,
                     network="mainnet" if self.config.netuid == 31 else "testnet",
+                    validator_version=str(__version__),
                 )
                 submissions.append(submission)
             except Exception as e:
