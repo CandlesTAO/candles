@@ -84,7 +84,10 @@ class Validator(BaseValidatorNeuron):
 
         # Initialize auto-updater
         self.auto_updater = None
-        if not getattr(self.config, "mock", False):
+        if (
+            not getattr(self.config, "mock", False)
+            and os.getenv("ENABLE_AUTO_UPDATER", "false").lower() == "true"
+        ):
             try:
                 self.auto_updater = AutoUpdater(
                     check_interval=int(
@@ -98,6 +101,8 @@ class Validator(BaseValidatorNeuron):
             except Exception as e:
                 bittensor.logging.warning(f"Auto-updater initialization failed: {e}")
                 self.auto_updater = None
+        elif os.getenv("ENABLE_AUTO_UPDATER", "false").lower() == "false":
+            bittensor.logging.info("Auto-updater disabled via ENABLE_AUTO_UPDATER")
 
     async def async_init(self):
         """
@@ -112,8 +117,9 @@ class Validator(BaseValidatorNeuron):
         # Start background scoring task
         self.start_background_scoring()
 
-        # Start background auto-updater task
-        self.start_background_auto_updater()
+        if os.getenv("ENABLE_AUTO_UPDATER", "true").lower() == "true":
+            # Start background auto-updater task
+            self.start_background_auto_updater()
 
     def start_background_scoring(self):
         """
