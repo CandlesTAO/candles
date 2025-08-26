@@ -174,6 +174,24 @@ class AutoUpdater:
         try:
             self.logger.info("Pulling latest updates from GitHub...")
 
+            # Preserve important files before git reset
+            important_files = [
+                "start_validator.sh",
+                "pm2_start_validator.sh",
+                ".env",
+                "validator_config.json",
+            ]
+
+            preserved_files = {}
+            for file_path in important_files:
+                if os.path.exists(file_path):
+                    try:
+                        with open(file_path, "r") as f:
+                            preserved_files[file_path] = f.read()
+                        self.logger.info(f"Preserved {file_path}")
+                    except Exception as e:
+                        self.logger.warning(f"Could not preserve {file_path}: {e}")
+
             # Fetch latest changes
             result = subprocess.run(
                 ["git", "fetch", "origin"],
@@ -187,7 +205,7 @@ class AutoUpdater:
                 return False
 
             result = subprocess.run(
-                ["git", "reset", "--hard", "origin/main"],
+                ["git", "reset", "--hard", f"origin/{self.auto_update_branch}"],
                 capture_output=True,
                 text=True,
                 cwd=os.getcwd(),
@@ -196,6 +214,20 @@ class AutoUpdater:
             if result.returncode != 0:
                 self.logger.error(f"Git reset failed: {result.stderr}")
                 return False
+
+            # Restore preserved files if they were overwritten
+            for file_path, content in preserved_files.items():
+                try:
+                    # Check if the file was modified by git reset
+                    if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+                        with open(file_path, "w") as f:
+                            f.write(content)
+                        self.logger.info(f"Restored {file_path}")
+                        # Make executable if it's a shell script
+                        if file_path.endswith(".sh"):
+                            os.chmod(file_path, 0o755)
+                except Exception as e:
+                    self.logger.warning(f"Could not restore {file_path}: {e}")
 
             # Update current commit
             self.current_commit = self.get_current_commit()
@@ -254,6 +286,7 @@ class AutoUpdater:
         The shell script will detect this and restart the validator.
         """
         try:
+            self.logger.info("Restarting validator...")
             process_info = self.get_validator_process_info()
             if not process_info:
                 self.logger.error("Could not get process info for restart")
