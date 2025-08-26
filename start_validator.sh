@@ -5,6 +5,23 @@
 
 set -e
 
+# Backup mechanism: If this script gets removed by auto-updater, restore it
+SCRIPT_NAME="start_validator.sh"
+SCRIPT_BACKUP=".start_validator_backup.sh"
+
+# If this script doesn't exist but backup does, restore it
+if [ ! -f "$SCRIPT_NAME" ] && [ -f "$SCRIPT_BACKUP" ]; then
+    echo "Script was removed, restoring from backup..."
+    cp "$SCRIPT_BACKUP" "$SCRIPT_NAME"
+    chmod +x "$SCRIPT_NAME"
+    echo "Script restored from backup"
+fi
+
+# Create backup of this script for future restoration
+if [ -f "$SCRIPT_NAME" ]; then
+    cp "$SCRIPT_NAME" "$SCRIPT_BACKUP"
+    chmod +x "$SCRIPT_BACKUP"
+fi
 
 # Check if restart is requested (auto-updater functionality)
 if [ -f ".validator_restart" ]; then
