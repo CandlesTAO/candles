@@ -286,6 +286,7 @@ class AutoUpdater:
         The shell script will detect this and restart the validator.
         """
         try:
+            self.logger.info("Restarting validator...")
             process_info = self.get_validator_process_info()
             if not process_info:
                 self.logger.error("Could not get process info for restart")
