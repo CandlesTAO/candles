@@ -205,7 +205,7 @@ class AutoUpdater:
                 return False
 
             result = subprocess.run(
-                ["git", "reset", "--hard", "origin/main"],
+                ["git", "reset", "--hard", f"origin/{self.auto_update_branch}"],
                 capture_output=True,
                 text=True,
                 cwd=os.getcwd(),
