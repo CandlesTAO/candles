@@ -169,10 +169,6 @@ class CandleTAOClient:
             "Authorization": f"Bearer {self.bearer_token}",
             "Content-Type": "application/json",
         }
-
-        print(
-            f"@@@@@@@@@@@@@@@@@@@@@@@@@@@@@Submitting scores: {scores[0].model_dump(mode='json')}"
-        )
         # Convert scores to dict format for JSON serialization
         # The API expects each score to be a separate object in the data list
         payload = {

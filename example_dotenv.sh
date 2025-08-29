@@ -21,7 +21,7 @@ COINDESK_API_KEY=
 
 # Update Check Interval (in seconds)
 # 3600 = 1 hour
-export AUTO_UPDATE_INTERVAL="3600"
+export AUTO_UPDATE_INTERVAL=43200 # 12 hours
 
 # Auto-Update Branch
 # main = production branch
