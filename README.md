@@ -222,8 +222,7 @@ cp hourly_predictions.csv ~/.candles/data/
 
 ## 📚 Documentation
 
-More comprehensive documentation is coming soon. For now, see:
-- `candles/` - Source code with inline documentation
+- **[Validator Setup & Auto-Update Guide](validator.md)** - Complete guide for setting up and configuring validators with auto-update functionality
 
 ## 💬 Community
 

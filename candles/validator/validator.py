@@ -117,7 +117,7 @@ class Validator(BaseValidatorNeuron):
         # Start background scoring task
         self.start_background_scoring()
 
-        if os.getenv("ENABLE_AUTO_UPDATER", "true").lower() == "true":
+        if os.getenv("ENABLE_AUTO_UPDATER", "false").lower() == "true":
             # Start background auto-updater task
             self.start_background_auto_updater()
 
