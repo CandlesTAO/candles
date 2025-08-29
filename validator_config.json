@@ -3,6 +3,6 @@
   "wallet_hotkey": "validator_default",
   "last_update": null,
   "previous_commit": null,
-  "check_interval": 300,
+  "check_interval": 43200,
   "update_history": []
 }
