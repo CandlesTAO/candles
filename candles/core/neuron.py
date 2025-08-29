@@ -65,7 +65,9 @@ class BaseNeuron(Protocol):
             try:
                 return await self.subtensor.get_current_block()
             except Exception as e:
-                bt.logging.error(f"Error getting current block: {e}, reinitializing subtensor...")
+                bt.logging.error(
+                    f"Error getting current block: {e}, reinitializing subtensor..."
+                )
                 await self.subtensor.close()
                 self.subtensor = bt.AsyncSubtensor(config=self.config)
                 await self.subtensor.initialize()
@@ -73,7 +75,6 @@ class BaseNeuron(Protocol):
                 return await self.subtensor.get_current_block()
 
     def __init__(self, config=None):
-        # print("self.config()", self.config())
         base_config = copy.deepcopy(config or BaseNeuron.config())
         self.config = self.config()
         self.config.merge(base_config)
@@ -141,9 +142,8 @@ class BaseNeuron(Protocol):
                 f"Running neuron on subnet: {self.config.netuid} with uid {self.uid} using network: {self.subtensor.chain_endpoint}"
             )
 
-    #@abstractmethod
-    #async def forward(self, synapse: bt.Synapse) -> bt.Synapse: ...
-
+    # @abstractmethod
+    # async def forward(self, synapse: bt.Synapse) -> bt.Synapse: ...
 
     def run(self): ...
 
@@ -158,8 +158,8 @@ class BaseNeuron(Protocol):
             self.resync_metagraph()
 
         # Turning off setting weights here as we'll run its logic in a background thread defined in neurons/validator.py
-        #if self.should_set_weights():
-            #self.set_weights()
+        # if self.should_set_weights():
+        # self.set_weights()
 
         # Always save state.
         self.save_state()
@@ -228,8 +228,10 @@ class BaseNeuron(Protocol):
 
         # Define appropriate logic for when set weights.
         return (
-            self.block - self.metagraph.last_update[self.uid]
-        ) > self.config.neuron.epoch_length and self.neuron_type != "MinerNeuron"  # don't set weights if you're a miner
+            (self.block - self.metagraph.last_update[self.uid])
+            > self.config.neuron.epoch_length
+            and self.neuron_type != "MinerNeuron"
+        )  # don't set weights if you're a miner
 
     async def should_set_weights_async(self) -> bool:
         # Don't set weights on initialization.
@@ -243,8 +245,10 @@ class BaseNeuron(Protocol):
         # Define appropriate logic for when set weights.
         current_block = await self.get_current_block()
         return (
-            current_block - self.metagraph.last_update[self.uid]
-        ) > self.config.neuron.epoch_length and self.neuron_type != "MinerNeuron"  # don't set weights if you're a miner
+            (current_block - self.metagraph.last_update[self.uid])
+            > self.config.neuron.epoch_length
+            and self.neuron_type != "MinerNeuron"
+        )  # don't set weights if you're a miner
 
     def save_state(self):
         bt.logging.warning(
@@ -261,7 +265,7 @@ class BaseNeuron(Protocol):
         Cleanup method for proper resource management of AsyncSubtensor.
         Should be called when shutting down the neuron.
         """
-        if not self.config.mock and hasattr(self, 'subtensor') and self.subtensor:
+        if not self.config.mock and hasattr(self, "subtensor") and self.subtensor:
             try:
                 await self.subtensor.close()
                 bt.logging.info("AsyncSubtensor connection closed successfully.")

@@ -1,0 +1,82 @@
+# Pre-commit hooks configuration
+
+repos:
+  # Ruff - Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6  # Update to latest version
+    hooks:
+      - id: ruff
+        name: Run ruff linter
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+        name: Run ruff formatter
+
+  # Standard pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: Trim trailing whitespace
+      - id: end-of-file-fixer
+        name: Fix end of files
+      - id: check-yaml
+        name: Check YAML syntax
+        args: [--allow-multiple-documents]
+      - id: check-added-large-files
+        name: Check for large files
+        args: [--maxkb=1000]
+      - id: check-merge-conflict
+        name: Check for merge conflicts
+      - id: check-toml
+        name: Check TOML syntax
+      - id: check-json
+        name: Check JSON syntax
+      - id: mixed-line-ending
+        name: Fix mixed line endings
+        args: [--fix=lf]
+
+  # Local hooks for project-specific tools
+  - repo: local
+    hooks:
+      - id: ty-check
+        name: Type check with ty
+        entry: uv run ty check
+        language: system
+        types: [python]
+        pass_filenames: false
+        # Only run on Python files in the candles directory
+        files: ^candles/.*\.py$
+
+      - id: pytest-check
+        name: Run pytest on modified test files
+        entry: uv run pytest
+        language: system
+        types: [python]
+        pass_filenames: true
+        # Only run on test files
+        files: ^tests/.*test.*\.py$
+        stages: [pre-push]  # Run only on push to avoid slowing down commits
+
+# Configuration for pre-commit itself
+default_language_version:
+  python: python3
+
+# Exclude certain files/directories from pre-commit checks
+exclude: |
+  (?x)^(
+    .*\.egg-info/|
+    \.git/|
+    \.mypy_cache/|
+    \.pytest_cache/|
+    \.ruff_cache/|
+    \.venv/|
+    build/|
+    dist/|
+    __pycache__/
+  )
+
+# Set the default stages for hooks (can be overridden per hook)
+default_stages: [pre-commit]
+
+# Fail fast on first error
+fail_fast: false

@@ -22,7 +22,6 @@ class BaseStorage(ABC):
         """Loads data by key. Returns None if the key is not found."""
         pass
 
-
     def get_config(self):
         """Returns the config object for specific storage based on class implementation."""
         parser = ArgumentParser()

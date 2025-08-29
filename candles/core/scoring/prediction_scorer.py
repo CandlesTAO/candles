@@ -23,7 +23,11 @@ class PredictionScorer(BaseScorer):
         self.price_client = price_client
         self.symbol = symbol
 
-    async def score_prediction(self, prediction: CandlePrediction, actual_ohlc: CoinDeskResponseOHLC | None = None) -> ScoringResult:
+    async def score_prediction(
+        self,
+        prediction: CandlePrediction,
+        actual_ohlc: CoinDeskResponseOHLC | None = None,
+    ) -> ScoringResult:
         """Score a prediction against actual market data.
 
         Args:
@@ -39,18 +43,17 @@ class PredictionScorer(BaseScorer):
 
         # Calculate price proximity score
         price_score = self._calculate_price_score(
-            float(prediction.price),
-            actual_ohlc.close
+            float(prediction.price), actual_ohlc.close
         )
 
         # Get confidence weight
-        confidence_weight = float(prediction.confidence) if prediction.confidence else 0.5
+        confidence_weight = (
+            float(prediction.confidence) if prediction.confidence else 0.5
+        )
 
         # Calculate final weighted score
         final_score = self._calculate_final_score(
-            color_score,
-            price_score,
-            confidence_weight
+            color_score, price_score, confidence_weight
         )
         bittensor.logging.info(f"[yellow]Scoring result: {final_score}[/yellow]")
         return ScoringResult(
@@ -62,10 +65,12 @@ class PredictionScorer(BaseScorer):
             confidence_weight=confidence_weight,
             final_score=final_score,
             actual_color=actual_ohlc.color.value,
-            actual_price=actual_ohlc.close
+            actual_price=actual_ohlc.close,
         )
 
-    def _calculate_color_score(self, predicted_color: CandleColor, actual_color: CandleColor) -> float:
+    def _calculate_color_score(
+        self, predicted_color: CandleColor, actual_color: CandleColor
+    ) -> float:
         """Calculate score based on color prediction accuracy.
 
         Args:
@@ -75,10 +80,14 @@ class PredictionScorer(BaseScorer):
         Returns:
             float: Score between 0.0 and 1.0
         """
-        bittensor.logging.debug(f"Predicted color: {predicted_color}, Actual color: {actual_color}")
+        bittensor.logging.debug(
+            f"Predicted color: {predicted_color}, Actual color: {actual_color}"
+        )
         return 1.0 if predicted_color == actual_color else 0.0
 
-    def _calculate_price_score(self, predicted_price: float, actual_price: float) -> float:
+    def _calculate_price_score(
+        self, predicted_price: float, actual_price: float
+    ) -> float:
         """Calculate score based on price prediction accuracy using percentage error.
 
         Args:
@@ -92,14 +101,18 @@ class PredictionScorer(BaseScorer):
             return 0.0
 
         # Calculate percentage error
-        bittensor.logging.debug(f"Predicted price: {predicted_price}, Actual price: {actual_price}")
+        bittensor.logging.debug(
+            f"Predicted price: {predicted_price}, Actual price: {actual_price}"
+        )
         percentage_error = abs(predicted_price - actual_price) / actual_price
         # Convert to score using exponential decay
         # This gives high scores for low errors and rapidly decreases as error increases
         score = math.exp(-percentage_error * 10)  # 10 is a scaling factor
         return min(1.0, max(0.0, score))
 
-    def _calculate_final_score(self, color_score: float, price_score: float, confidence: float) -> float:
+    def _calculate_final_score(
+        self, color_score: float, price_score: float, confidence: float
+    ) -> float:
         """Calculate the final weighted score.
 
         Args:

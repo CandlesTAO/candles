@@ -54,9 +54,7 @@ def mock_dendrite():
 def sample_candle_prediction():
     """Sample candle prediction for testing."""
     return CandlePrediction(
-        prediction_id=1,
-        interval="hourly",
-        interval_id="test_interval_123"
+        prediction_id=1, interval="hourly", interval_id="test_interval_123"
     )
 
 
@@ -66,6 +64,7 @@ def sample_synapse(sample_candle_prediction):
     synapse = GetCandlePrediction(candle_prediction=sample_candle_prediction)
     # Create a proper dendrite mock
     from bittensor import TerminalInfo
+
     dendrite = TerminalInfo(
         status_code=200,
         status_message="Success",
@@ -75,7 +74,7 @@ def sample_synapse(sample_candle_prediction):
         version=1,
         nonce=123,
         uuid="test-uuid",
-        hotkey="test_hotkey_1"
+        hotkey="test_hotkey_1",
     )
     synapse.dendrite = dendrite
     return synapse
@@ -173,7 +172,9 @@ class TestBlacklistFunction:
     def test_blacklist_insufficient_stake(self):
         """Test blacklist when validator has insufficient stake."""
         synapse = MagicMock()
-        synapse.dendrite.hotkey = "validator_hotkey"  # Index 1, is validator but low stake
+        synapse.dendrite.hotkey = (
+            "validator_hotkey"  # Index 1, is validator but low stake
+        )
 
         mock_miner = MagicMock()
         mock_miner.metagraph.hotkeys = ["valid_hotkey", "validator_hotkey"]
@@ -183,7 +184,10 @@ class TestBlacklistFunction:
         mock_tensor_50.item.return_value = 50
         mock_tensor_50_2 = MagicMock()
         mock_tensor_50_2.item.return_value = 50
-        mock_miner.metagraph.S = [mock_tensor_50, mock_tensor_50_2]  # Both below minimum
+        mock_miner.metagraph.S = [
+            mock_tensor_50,
+            mock_tensor_50_2,
+        ]  # Both below minimum
         mock_miner.config.blacklist.allow_non_registered = False
         mock_miner.config.blacklist.force_validator_permit = True
         mock_miner.config.blacklist.validator_min_stake = 100
@@ -206,7 +210,10 @@ class TestBlacklistFunction:
         mock_tensor_50.item.return_value = 50
         mock_tensor_1000 = MagicMock()
         mock_tensor_1000.item.return_value = 1000
-        mock_miner.metagraph.S = [mock_tensor_50, mock_tensor_1000]  # Second has sufficient stake
+        mock_miner.metagraph.S = [
+            mock_tensor_50,
+            mock_tensor_1000,
+        ]  # Second has sufficient stake
         mock_miner.config.blacklist.allow_non_registered = False
         mock_miner.config.blacklist.force_validator_permit = True
         mock_miner.config.blacklist.validator_min_stake = 100
@@ -252,20 +259,26 @@ class TestMakeCandlePrediction:
     """Test the make_candle_prediction method."""
 
     @pytest.mark.asyncio
-    async def test_make_candle_prediction_generates_values(self, miner_instance, sample_candle_prediction):
+    async def test_make_candle_prediction_generates_values(
+        self, miner_instance, sample_candle_prediction
+    ):
         """Test that make_candle_prediction generates all required values."""
-        with patch.object(miner_instance, 'find_prediction_file', return_value=None):
+        with patch.object(miner_instance, "find_prediction_file", return_value=None):
             with patch("random.uniform") as mock_uniform:
                 with patch("random.choice") as mock_choice:
                     with patch("candles.miner.miner.datetime") as mock_datetime:
                         # Set up mocks
                         mock_uniform.side_effect = [500.0, 0.75]  # price, confidence
                         mock_choice.return_value = CandleColor.GREEN
-                        mock_datetime.now.return_value.timestamp.return_value = 1234567890
+                        mock_datetime.now.return_value.timestamp.return_value = (
+                            1234567890
+                        )
 
                         miner_instance.uid = 5
 
-                        result = await miner_instance.make_candle_prediction(sample_candle_prediction)
+                        result = await miner_instance.make_candle_prediction(
+                            sample_candle_prediction
+                        )
 
                         # Verify all fields are set
                         assert result.color == CandleColor.GREEN
@@ -278,27 +291,35 @@ class TestMakeCandlePrediction:
                         assert result.prediction_date == expected_datetime
 
     @pytest.mark.asyncio
-    async def test_make_candle_prediction_random_values(self, miner_instance, sample_candle_prediction):
+    async def test_make_candle_prediction_random_values(
+        self, miner_instance, sample_candle_prediction
+    ):
         """Test that make_candle_prediction uses random values in expected ranges."""
-        with patch.object(miner_instance, 'find_prediction_file', return_value=None):
+        with patch.object(miner_instance, "find_prediction_file", return_value=None):
             with patch("random.uniform") as mock_uniform:
                 with patch("random.choice") as mock_choice:
                     with patch("candles.miner.miner.datetime"):
                         mock_uniform.side_effect = [750.0, 0.9]
                         mock_choice.return_value = CandleColor.RED
 
-                        await miner_instance.make_candle_prediction(sample_candle_prediction)
+                        await miner_instance.make_candle_prediction(
+                            sample_candle_prediction
+                        )
 
                         # Verify random.uniform was called with correct ranges
                         calls = mock_uniform.call_args_list
                         assert calls[0] == call(100, 1000)  # price range
-                        assert calls[1] == call(0.5, 1.0)   # confidence range
+                        assert calls[1] == call(0.5, 1.0)  # confidence range
 
                         # Verify random.choice was called with colors
-                        mock_choice.assert_called_once_with([CandleColor.RED, CandleColor.GREEN])
+                        mock_choice.assert_called_once_with(
+                            [CandleColor.RED, CandleColor.GREEN]
+                        )
 
     @pytest.mark.asyncio
-    async def test_make_candle_prediction_uses_file_when_available(self, miner_instance, sample_candle_prediction):
+    async def test_make_candle_prediction_uses_file_when_available(
+        self, miner_instance, sample_candle_prediction
+    ):
         """Test that make_candle_prediction uses file predictions when available."""
         # Mock file prediction to be found
         mock_prediction = CandlePrediction(
@@ -307,12 +328,19 @@ class TestMakeCandlePrediction:
             interval_id="test_interval_123",
             color=CandleColor.GREEN,
             price=Decimal("400.0"),
-            confidence=Decimal("0.9")
+            confidence=Decimal("0.9"),
         )
 
-        with patch.object(miner_instance, 'find_prediction_file', return_value='/test/file.csv'):
-            with patch('candles.miner.miner.get_file_predictions', return_value=[mock_prediction]):
-                result = await miner_instance.make_candle_prediction(sample_candle_prediction)
+        with patch.object(
+            miner_instance, "find_prediction_file", return_value="/test/file.csv"
+        ):
+            with patch(
+                "candles.miner.miner.get_file_predictions",
+                return_value=[mock_prediction],
+            ):
+                result = await miner_instance.make_candle_prediction(
+                    sample_candle_prediction
+                )
 
                 # Should return the file prediction
                 assert result == mock_prediction
@@ -321,122 +349,152 @@ class TestMakeCandlePrediction:
 class TestFindPredictionFile:
     """Test the find_prediction_file method."""
 
-    @patch('candles.miner.miner.glob.glob')
-    @patch('candles.miner.miner.os.path.exists')
-    @patch('candles.miner.miner.os.getenv')
-    def test_find_prediction_file_hourly_found(self, mock_getenv, mock_exists, mock_glob, miner_instance):
+    @patch("candles.miner.miner.glob.glob")
+    @patch("candles.miner.miner.os.path.exists")
+    @patch("candles.miner.miner.os.getenv")
+    def test_find_prediction_file_hourly_found(
+        self, mock_getenv, mock_exists, mock_glob, miner_instance
+    ):
         """Test finding hourly prediction files."""
         # Create a mock Path object that has exists() method
         mock_candles_data_dir = MagicMock()
         mock_candles_data_dir.exists.return_value = True
-        mock_candles_data_dir.__str__.return_value = '/home/user/.candles/data'
-        mock_candles_data_dir.__truediv__.return_value = '/home/user/.candles/data/hourly_*.csv'
+        mock_candles_data_dir.__str__.return_value = "/home/user/.candles/data"
+        mock_candles_data_dir.__truediv__.return_value = (
+            "/home/user/.candles/data/hourly_*.csv"
+        )
 
         # Mock Path.home() to return a path that when divided creates our mock
         mock_home_path = MagicMock()
-        mock_home_path.__truediv__.return_value.__truediv__.return_value = mock_candles_data_dir
+        mock_home_path.__truediv__.return_value.__truediv__.return_value = (
+            mock_candles_data_dir
+        )
 
-        with patch.object(Path, 'home', return_value=mock_home_path):
-            mock_glob.return_value = ['/home/user/.candles/data/hourly_predictions.csv']
+        with patch.object(Path, "home", return_value=mock_home_path):
+            mock_glob.return_value = ["/home/user/.candles/data/hourly_predictions.csv"]
 
             result = miner_instance.find_prediction_file(TimeInterval.HOURLY)
 
-            assert result == '/home/user/.candles/data/hourly_predictions.csv'
+            assert result == "/home/user/.candles/data/hourly_predictions.csv"
 
-    @patch('candles.miner.miner.glob.glob')
-    @patch('candles.miner.miner.os.path.exists')
-    @patch('candles.miner.miner.os.getenv')
-    def test_find_prediction_file_daily_found(self, mock_getenv, mock_exists, mock_glob, miner_instance):
+    @patch("candles.miner.miner.glob.glob")
+    @patch("candles.miner.miner.os.path.exists")
+    @patch("candles.miner.miner.os.getenv")
+    def test_find_prediction_file_daily_found(
+        self, mock_getenv, mock_exists, mock_glob, miner_instance
+    ):
         """Test finding daily prediction files."""
         # Create a mock Path object that has exists() method
         mock_candles_data_dir = MagicMock()
         mock_candles_data_dir.exists.return_value = True
-        mock_candles_data_dir.__str__.return_value = '/home/user/.candles/data'
-        mock_candles_data_dir.__truediv__.return_value = '/home/user/.candles/data/daily_*.csv'
+        mock_candles_data_dir.__str__.return_value = "/home/user/.candles/data"
+        mock_candles_data_dir.__truediv__.return_value = (
+            "/home/user/.candles/data/daily_*.csv"
+        )
 
         # Mock Path.home() to return a path that when divided creates our mock
         mock_home_path = MagicMock()
-        mock_home_path.__truediv__.return_value.__truediv__.return_value = mock_candles_data_dir
+        mock_home_path.__truediv__.return_value.__truediv__.return_value = (
+            mock_candles_data_dir
+        )
 
-        with patch.object(Path, 'home', return_value=mock_home_path):
-            mock_glob.return_value = ['/home/user/.candles/data/daily_data.csv']
+        with patch.object(Path, "home", return_value=mock_home_path):
+            mock_glob.return_value = ["/home/user/.candles/data/daily_data.csv"]
 
             result = miner_instance.find_prediction_file(TimeInterval.DAILY)
 
-            assert result == '/home/user/.candles/data/daily_data.csv'
+            assert result == "/home/user/.candles/data/daily_data.csv"
 
-    @patch('candles.miner.miner.glob.glob')
-    @patch('candles.miner.miner.os.path.exists')
-    @patch('candles.miner.miner.os.getenv')
-    def test_find_prediction_file_weekly_found(self, mock_getenv, mock_exists, mock_glob, miner_instance):
+    @patch("candles.miner.miner.glob.glob")
+    @patch("candles.miner.miner.os.path.exists")
+    @patch("candles.miner.miner.os.getenv")
+    def test_find_prediction_file_weekly_found(
+        self, mock_getenv, mock_exists, mock_glob, miner_instance
+    ):
         """Test finding weekly prediction files."""
         # Create a mock Path object that has exists() method
         mock_candles_data_dir = MagicMock()
         mock_candles_data_dir.exists.return_value = True
-        mock_candles_data_dir.__str__.return_value = '/home/user/.candles/data'
-        mock_candles_data_dir.__truediv__.return_value = '/home/user/.candles/data/weekly_*.csv'
+        mock_candles_data_dir.__str__.return_value = "/home/user/.candles/data"
+        mock_candles_data_dir.__truediv__.return_value = (
+            "/home/user/.candles/data/weekly_*.csv"
+        )
 
         # Mock Path.home() to return a path that when divided creates our mock
         mock_home_path = MagicMock()
-        mock_home_path.__truediv__.return_value.__truediv__.return_value = mock_candles_data_dir
+        mock_home_path.__truediv__.return_value.__truediv__.return_value = (
+            mock_candles_data_dir
+        )
 
-        with patch.object(Path, 'home', return_value=mock_home_path):
-            mock_glob.return_value = ['/home/user/.candles/data/weekly_forecast.csv']
+        with patch.object(Path, "home", return_value=mock_home_path):
+            mock_glob.return_value = ["/home/user/.candles/data/weekly_forecast.csv"]
 
             result = miner_instance.find_prediction_file(TimeInterval.WEEKLY)
 
-            assert result == '/home/user/.candles/data/weekly_forecast.csv'
+            assert result == "/home/user/.candles/data/weekly_forecast.csv"
 
-    @patch('candles.miner.miner.glob.glob')
-    @patch('candles.miner.miner.os.path.exists')
-    @patch('candles.miner.miner.os.getenv')
-    def test_find_prediction_file_multiple_files_returns_first(self, mock_getenv, mock_exists, mock_glob, miner_instance):
+    @patch("candles.miner.miner.glob.glob")
+    @patch("candles.miner.miner.os.path.exists")
+    @patch("candles.miner.miner.os.getenv")
+    def test_find_prediction_file_multiple_files_returns_first(
+        self, mock_getenv, mock_exists, mock_glob, miner_instance
+    ):
         """Test that when multiple files match, the first (sorted) is returned."""
         # Create a mock Path object that has exists() method
         mock_candles_data_dir = MagicMock()
         mock_candles_data_dir.exists.return_value = True
-        mock_candles_data_dir.__str__.return_value = '/home/user/.candles/data'
-        mock_candles_data_dir.__truediv__.return_value = '/home/user/.candles/data/hourly_*.csv'
+        mock_candles_data_dir.__str__.return_value = "/home/user/.candles/data"
+        mock_candles_data_dir.__truediv__.return_value = (
+            "/home/user/.candles/data/hourly_*.csv"
+        )
 
         # Mock Path.home() to return a path that when divided creates our mock
         mock_home_path = MagicMock()
-        mock_home_path.__truediv__.return_value.__truediv__.return_value = mock_candles_data_dir
+        mock_home_path.__truediv__.return_value.__truediv__.return_value = (
+            mock_candles_data_dir
+        )
 
-        with patch.object(Path, 'home', return_value=mock_home_path):
+        with patch.object(Path, "home", return_value=mock_home_path):
             mock_glob.return_value = [
-                '/home/user/.candles/data/hourly_z.csv',
-                '/home/user/.candles/data/hourly_a.csv'
+                "/home/user/.candles/data/hourly_z.csv",
+                "/home/user/.candles/data/hourly_a.csv",
             ]
 
             result = miner_instance.find_prediction_file(TimeInterval.HOURLY)
 
-            assert result == '/home/user/.candles/data/hourly_a.csv'
+            assert result == "/home/user/.candles/data/hourly_a.csv"
 
-    @patch('candles.miner.miner.glob.glob')
-    @patch('candles.miner.miner.os.path.exists')
-    @patch('candles.miner.miner.os.getenv')
-    def test_find_prediction_file_fallback_to_env_var(self, mock_getenv, mock_exists, mock_glob, miner_instance):
+    @patch("candles.miner.miner.glob.glob")
+    @patch("candles.miner.miner.os.path.exists")
+    @patch("candles.miner.miner.os.getenv")
+    def test_find_prediction_file_fallback_to_env_var(
+        self, mock_getenv, mock_exists, mock_glob, miner_instance
+    ):
         """Test fallback to PREDICTIONS_FILE_PATH environment variable."""
-        with patch.object(Path, 'home', return_value=Path('/home/user')):
+        with patch.object(Path, "home", return_value=Path("/home/user")):
             # Mock .candles/data doesn't exist, but env var file does
-            mock_exists.side_effect = lambda path: path == '/custom/path/predictions.csv'
+            mock_exists.side_effect = (
+                lambda path: path == "/custom/path/predictions.csv"
+            )
             mock_glob.return_value = []  # No files in .candles/data
-            mock_getenv.return_value = '/custom/path/predictions.csv'
+            mock_getenv.return_value = "/custom/path/predictions.csv"
 
             result = miner_instance.find_prediction_file(TimeInterval.HOURLY)
 
-            assert result == '/custom/path/predictions.csv'
-            mock_getenv.assert_called_once_with('PREDICTIONS_FILE_PATH')
+            assert result == "/custom/path/predictions.csv"
+            mock_getenv.assert_called_once_with("PREDICTIONS_FILE_PATH")
 
-    @patch('candles.miner.miner.glob.glob')
-    @patch('candles.miner.miner.os.path.exists')
-    @patch('candles.miner.miner.os.getenv')
-    def test_find_prediction_file_env_var_file_not_exists(self, mock_getenv, mock_exists, mock_glob, miner_instance):
+    @patch("candles.miner.miner.glob.glob")
+    @patch("candles.miner.miner.os.path.exists")
+    @patch("candles.miner.miner.os.getenv")
+    def test_find_prediction_file_env_var_file_not_exists(
+        self, mock_getenv, mock_exists, mock_glob, miner_instance
+    ):
         """Test behavior when env var is set but file doesn't exist."""
-        with patch.object(Path, 'home', return_value=Path('/home/user')):
+        with patch.object(Path, "home", return_value=Path("/home/user")):
             mock_exists.return_value = False  # Nothing exists
             mock_glob.return_value = []  # No files in .candles/data
-            mock_getenv.return_value = '/nonexistent/predictions.csv'
+            mock_getenv.return_value = "/nonexistent/predictions.csv"
 
             result = miner_instance.find_prediction_file(TimeInterval.HOURLY)
 
@@ -462,10 +520,12 @@ class TestGetCandlePrediction:
             interval_id="test_interval_123",
             color=CandleColor.GREEN,
             price=Decimal("500.0"),
-            confidence=Decimal("0.75")
+            confidence=Decimal("0.75"),
         )
 
-        with patch.object(miner_instance, 'make_candle_prediction', return_value=expected_prediction) as mock_make:
+        with patch.object(
+            miner_instance, "make_candle_prediction", return_value=expected_prediction
+        ) as mock_make:
             result = await miner_instance.get_candle_prediction(sample_synapse)
 
             # Verify make_candle_prediction was called with the original prediction
@@ -480,11 +540,17 @@ class TestGetCandlePrediction:
             assert result.version == 1
 
     @pytest.mark.asyncio
-    async def test_get_candle_prediction_preserves_synapse(self, miner_instance, sample_synapse):
+    async def test_get_candle_prediction_preserves_synapse(
+        self, miner_instance, sample_synapse
+    ):
         """Test that get_candle_prediction preserves original synapse properties."""
         original_dendrite = sample_synapse.dendrite
 
-        with patch.object(miner_instance, 'make_candle_prediction', return_value=sample_synapse.candle_prediction):
+        with patch.object(
+            miner_instance,
+            "make_candle_prediction",
+            return_value=sample_synapse.candle_prediction,
+        ):
             result = await miner_instance.get_candle_prediction(sample_synapse)
 
             # Verify original synapse properties are preserved
@@ -511,11 +577,12 @@ class TestMinerIntegration:
         candle_prediction = CandlePrediction(
             prediction_id=1,
             interval=TimeInterval.HOURLY,
-            interval_id="integration_test_123"
+            interval_id="integration_test_123",
         )
         synapse = GetCandlePrediction(candle_prediction=candle_prediction)
         # Create a proper dendrite mock
         from bittensor import TerminalInfo
+
         dendrite = TerminalInfo(
             status_code=200,
             status_message="Success",
@@ -525,18 +592,20 @@ class TestMinerIntegration:
             version=1,
             nonce=123,
             uuid="test-uuid",
-            hotkey="test_validator"
+            hotkey="test_validator",
         )
         synapse.dendrite = dendrite
 
-        with patch.object(miner_instance, 'find_prediction_file', return_value=None):
+        with patch.object(miner_instance, "find_prediction_file", return_value=None):
             with patch("random.uniform") as mock_uniform:
                 with patch("random.choice") as mock_choice:
                     with patch("candles.miner.miner.datetime") as mock_datetime:
                         # Set up deterministic values for testing
                         mock_uniform.side_effect = [850.0, 0.85]
                         mock_choice.return_value = CandleColor.RED
-                        mock_datetime.now.return_value.timestamp.return_value = 1234567890
+                        mock_datetime.now.return_value.timestamp.return_value = (
+                            1234567890
+                        )
 
                         miner_instance.uid = 10
 
@@ -560,53 +629,63 @@ class TestMinerIntegration:
 class TestMinerParametrizedTests:
     """Parametrized tests for various scenarios."""
 
-    @pytest.mark.parametrize("interval", [
-        TimeInterval.HOURLY,
-        TimeInterval.DAILY,
-        TimeInterval.WEEKLY,
-        TimeInterval.MONTHLY
-    ])
+    @pytest.mark.parametrize(
+        "interval",
+        [
+            TimeInterval.HOURLY,
+            TimeInterval.DAILY,
+            TimeInterval.WEEKLY,
+            TimeInterval.MONTHLY,
+        ],
+    )
     @pytest.mark.asyncio
     async def test_prediction_with_different_intervals(self, miner_instance, interval):
         """Test prediction generation with different time intervals."""
         candle_prediction = CandlePrediction(
-            prediction_id=1,
-            interval=interval,
-            interval_id=f"test_{interval}_123"
+            prediction_id=1, interval=interval, interval_id=f"test_{interval}_123"
         )
 
-        with patch.object(miner_instance, 'find_prediction_file', return_value=None):
+        with patch.object(miner_instance, "find_prediction_file", return_value=None):
             with patch("random.uniform") as mock_uniform:
                 with patch("random.choice") as mock_choice:
                     with patch("candles.miner.miner.datetime"):
                         mock_uniform.side_effect = [600.0, 0.8]
                         mock_choice.return_value = CandleColor.GREEN
 
-                        result = await miner_instance.make_candle_prediction(candle_prediction)
+                        result = await miner_instance.make_candle_prediction(
+                            candle_prediction
+                        )
 
                         assert result.interval == interval
                         assert result.interval_id == f"test_{interval}_123"
 
     @pytest.mark.parametrize("color", [CandleColor.RED, CandleColor.GREEN])
     @pytest.mark.asyncio
-    async def test_prediction_with_different_colors(self, miner_instance, sample_candle_prediction, color):
+    async def test_prediction_with_different_colors(
+        self, miner_instance, sample_candle_prediction, color
+    ):
         """Test prediction generation with different colors."""
-        with patch.object(miner_instance, 'find_prediction_file', return_value=None):
+        with patch.object(miner_instance, "find_prediction_file", return_value=None):
             with patch("random.uniform") as mock_uniform:
                 with patch("random.choice") as mock_choice:
                     with patch("candles.miner.miner.datetime"):
                         mock_uniform.side_effect = [400.0, 0.6]
                         mock_choice.return_value = color
 
-                        result = await miner_instance.make_candle_prediction(sample_candle_prediction)
+                        result = await miner_instance.make_candle_prediction(
+                            sample_candle_prediction
+                        )
 
                         assert result.color == color
 
-    @pytest.mark.parametrize("stake,expected_blacklist", [
-        (50, True),   # Below minimum stake
-        (100, False), # At minimum stake
-        (500, False), # Above minimum stake
-    ])
+    @pytest.mark.parametrize(
+        "stake,expected_blacklist",
+        [
+            (50, True),  # Below minimum stake
+            (100, False),  # At minimum stake
+            (500, False),  # Above minimum stake
+        ],
+    )
     def test_blacklist_different_stakes(self, stake, expected_blacklist):
         """Test blacklist behavior with different stake amounts."""
         synapse = MagicMock()

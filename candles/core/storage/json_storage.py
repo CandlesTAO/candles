@@ -13,6 +13,7 @@ logger = getLogger(__name__)
 
 DEFAULT_PATH = Path("~/.candles/data")
 
+
 class CustomJSONEncoder(json.JSONEncoder):
     """Custom JSON encoder to handle datetime and Decimal objects."""
 
@@ -46,7 +47,9 @@ class BaseJsonStorage(BaseStorage):
         logger.info(f"Initializing storage with path: {self.path.absolute()}")
         try:
             self.path.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Successfully created/verified directory: {self.path.absolute()}")
+            logger.info(
+                f"Successfully created/verified directory: {self.path.absolute()}"
+            )
         except Exception as e:
             logger.error(f"Failed to create directory {self.path.absolute()}: {str(e)}")
             raise
@@ -103,5 +106,3 @@ class BaseJsonStorage(BaseStorage):
     def load_data(self, prefix: str = "predictions") -> Optional[Any]:
         data_file = self.path / f"{prefix}.json"
         return _read_json(data_file) if data_file.exists() else None
-
-

@@ -41,7 +41,6 @@ from ..core.utils import add_validator_args
 load_dotenv()
 
 
-
 class BaseValidatorNeuron(BaseNeuron):
     """
     Base class for Bittensor validators. Your validator should inherit from this class.
@@ -146,11 +145,13 @@ class BaseValidatorNeuron(BaseNeuron):
                 bittensor.logging.error(f"Failed to serve Axon with exception: {e}")
 
         except Exception as e:
-            bittensor.logging.error(f"Failed to create Axon initialize with exception: {e}")
+            bittensor.logging.error(
+                f"Failed to create Axon initialize with exception: {e}"
+            )
 
     async def serve_axon_async(self):
         """Async version of serve_axon for non-mock mode."""
-        if not self.config.mock and hasattr(self, 'subtensor'):
+        if not self.config.mock and hasattr(self, "subtensor"):
             try:
                 # For AsyncSubtensor, we may need to handle serving differently
                 # This might need to be adapted based on AsyncSubtensor API
@@ -158,14 +159,15 @@ class BaseValidatorNeuron(BaseNeuron):
                     netuid=self.config.netuid,
                     axon=self.axon,
                 )
-                bittensor.logging.info("Axon served to chain successfully in async mode")
+                bittensor.logging.info(
+                    "Axon served to chain successfully in async mode"
+                )
             except Exception as e:
                 bittensor.logging.error(f"Failed to serve Axon in async mode: {e}")
 
-
     async def concurrent_forward(self):
         coroutines = [
-            self.forward() for _ in range(self.config.neuron.num_concurrent_forwards)  # the config contains coroutines?
+            self.forward() for _ in range(self.config.neuron.num_concurrent_forwards)
         ]
         await asyncio.gather(*coroutines)
 
@@ -199,7 +201,7 @@ class BaseValidatorNeuron(BaseNeuron):
         """
         # Handle case where metagraph has grown (new miners)
         if len(self.hotkeys) < len(self.metagraph.hotkeys):
-            new_hotkeys = self.metagraph.hotkeys[len(self.hotkeys):]
+            new_hotkeys = self.metagraph.hotkeys[len(self.hotkeys) :]
             bittensor.logging.info(f"New miners detected with hotkeys: {new_hotkeys}")
             # Add new hotkeys to the local state
             for new_hotkey in new_hotkeys:
@@ -221,12 +223,16 @@ class BaseValidatorNeuron(BaseNeuron):
                 self.hotkeys[uid] = new_hotkey
 
                 # Clear historical data if SQLite storage is available
-                if hasattr(self, 'sqlite_storage') and self.sqlite_storage:
+                if hasattr(self, "sqlite_storage") and self.sqlite_storage:
                     try:
                         self.sqlite_storage.clear_miner_history(uid, old_hotkey)
-                        bittensor.logging.info(f"Cleared historical data for miner UID {uid} with old hotkey {old_hotkey}")
+                        bittensor.logging.info(
+                            f"Cleared historical data for miner UID {uid} with old hotkey {old_hotkey}"
+                        )
                     except Exception as e:
-                        bittensor.logging.error(f"Error clearing historical data for miner UID {uid}: {e}")
+                        bittensor.logging.error(
+                            f"Error clearing historical data for miner UID {uid}: {e}"
+                        )
 
     async def run(self):
         """
@@ -278,7 +284,9 @@ class BaseValidatorNeuron(BaseNeuron):
                 # Check if the validator needs to restart due to being out of date
                 # This ensures the validator stays current with network updates and protocol changes
                 if self.config.neuron.auto_update and await self.should_restart_async():
-                    bittensor.logging.info("Validator is out of date, quitting to restart.")
+                    bittensor.logging.info(
+                        "Validator is out of date, quitting to restart."
+                    )
                     raise KeyboardInterrupt
 
                 # Synchronize with the blockchain to update metagraph and potentially set weights
@@ -345,11 +353,13 @@ class BaseValidatorNeuron(BaseNeuron):
         if self.is_running:
             bittensor.logging.debug("Stopping validator in background task.")
             self.should_exit = True
-            if hasattr(self, 'background_task') and not self.background_task.done():
+            if hasattr(self, "background_task") and not self.background_task.done():
                 try:
                     await asyncio.wait_for(self.background_task, timeout=5.0)
                 except asyncio.TimeoutError:
-                    bittensor.logging.warning("Background task did not complete within timeout, cancelling.")
+                    bittensor.logging.warning(
+                        "Background task did not complete within timeout, cancelling."
+                    )
                     self.background_task.cancel()
                     try:
                         await self.background_task
@@ -423,7 +433,9 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Check if target UID is within bounds
         if target_uid >= len(raw_weights):
-            bittensor.logging.warning(f"Target UID {target_uid} is out of bounds for weights array of length {len(raw_weights)}")
+            bittensor.logging.warning(
+                f"Target UID {target_uid} is out of bounds for weights array of length {len(raw_weights)}"
+            )
             return raw_weights
 
         # Create new weights array
@@ -444,7 +456,9 @@ class BaseValidatorNeuron(BaseNeuron):
             # Distribute remaining weight proportionally among non-target UIDs
             for uid in range(len(raw_weights)):
                 if uid != target_uid:
-                    new_weights[uid] = (raw_weights[uid] / total_non_target_weight) * remaining_weight
+                    new_weights[uid] = (
+                        raw_weights[uid] / total_non_target_weight
+                    ) * remaining_weight
         else:
             # If no other weights, distribute remaining weight equally among non-target UIDs
             non_target_count = len(raw_weights) - 1
@@ -454,7 +468,9 @@ class BaseValidatorNeuron(BaseNeuron):
                     if uid != target_uid:
                         new_weights[uid] = equal_weight
 
-        bittensor.logging.info(f"Applied hardcoded weights: {target_weight_ratio*100}% to UID {target_uid}, {remaining_weight*100}% distributed among others")
+        bittensor.logging.info(
+            f"Applied hardcoded weights: {target_weight_ratio*100}% to UID {target_uid}, {remaining_weight*100}% distributed among others"
+        )
         return new_weights
 
     def _apply_ip_deduplication_to_weights(self, raw_weights: np.ndarray) -> np.ndarray:
@@ -473,10 +489,10 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Create a copy to avoid modifying the original
         deduplicated_weights = raw_weights.copy()
-        
+
         # Track which IPs we've already allocated weights to
         ip_to_uid: dict[str, int] = {}
-        
+
         def _get_ip_for_uid(uid: int) -> str | None:
             try:
                 axon = self.metagraph.axons[uid]
@@ -494,25 +510,36 @@ class BaseValidatorNeuron(BaseNeuron):
                         continue
             return None
 
-        uid_weight_pairs = [(uid, raw_weights[uid]) for uid in range(len(raw_weights)) if raw_weights[uid] > 0]
-        uid_weight_pairs.sort(key=lambda x: x[1], reverse=True)  # Sort by weight descending
+        uid_weight_pairs = [
+            (uid, raw_weights[uid])
+            for uid in range(len(raw_weights))
+            if raw_weights[uid] > 0
+        ]
+        uid_weight_pairs.sort(
+            key=lambda x: x[1], reverse=True
+        )  # Sort by weight descending
 
         for uid, weight in uid_weight_pairs:
             ip = _get_ip_for_uid(uid)
             if not ip:
                 continue
-            
 
             if ip == "0.0.0.0":
-                bittensor.logging.debug(f"Keeping weight for UID {uid} (IP: {ip}) with weight {weight:.6f} - exempted from IP deduplication")
+                bittensor.logging.debug(
+                    f"Keeping weight for UID {uid} (IP: {ip}) with weight {weight:.6f} - exempted from IP deduplication"
+                )
                 continue
-            
+
             if ip not in ip_to_uid:
                 ip_to_uid[ip] = uid
-                bittensor.logging.debug(f"Keeping weight for UID {uid} (IP: {ip}) with weight {weight:.6f}")
+                bittensor.logging.debug(
+                    f"Keeping weight for UID {uid} (IP: {ip}) with weight {weight:.6f}"
+                )
             else:
                 deduplicated_weights[uid] = 0.0
-                bittensor.logging.debug(f"Zeroing weight for UID {uid} (IP: {ip}) to prevent IP abuse. Keeping UID {ip_to_uid[ip]} instead.")
+                bittensor.logging.debug(
+                    f"Zeroing weight for UID {uid} (IP: {ip}) to prevent IP abuse. Keeping UID {ip_to_uid[ip]} instead."
+                )
 
         # Log summary of IP deduplication
         original_weight_count = np.count_nonzero(raw_weights)
@@ -529,8 +556,14 @@ class BaseValidatorNeuron(BaseNeuron):
         scores = self.scores
         total_score = np.sum(scores)
 
-        if not isinstance(target_uid, int) or target_uid < 0 or target_uid >= len(scores):
-            bittensor.logging.info(f"target_uid {target_uid} is out of bounds for scores array")
+        if (
+            not isinstance(target_uid, int)
+            or target_uid < 0
+            or target_uid >= len(scores)
+        ):
+            bittensor.logging.info(
+                f"target_uid {target_uid} is out of bounds for scores array"
+            )
             return
 
         # Half of the new total should go to target_uid
@@ -543,7 +576,9 @@ class BaseValidatorNeuron(BaseNeuron):
         total_other_scores = total_score - scores[target_uid]
 
         if total_other_scores == 0:
-            bittensor.logging.warning("All scores are zero except target UID, cannot scale.")
+            bittensor.logging.warning(
+                "All scores are zero except target UID, cannot scale."
+            )
             return
 
         # Scale other scores proportionally
@@ -579,11 +614,15 @@ class BaseValidatorNeuron(BaseNeuron):
                     return
             except Exception as e:
                 if attempt < max_retries - 1:
-                    bittensor.logging.warning(f"Error setting weights on attempt {attempt + 1}, retrying in {retry_delay} seconds: {e}")
+                    bittensor.logging.warning(
+                        f"Error setting weights on attempt {attempt + 1}, retrying in {retry_delay} seconds: {e}"
+                    )
                     await asyncio.sleep(retry_delay)
                     retry_delay *= 2  # Exponential backoff
                 else:
-                    bittensor.logging.error(f"Failed to set weights after {max_retries} attempts: {e}")
+                    bittensor.logging.error(
+                        f"Failed to set weights after {max_retries} attempts: {e}"
+                    )
                     raise
 
     def _set_weights_internal(self):
@@ -607,12 +646,12 @@ class BaseValidatorNeuron(BaseNeuron):
         # Compute raw_weights safely
         raw_weights = self.scores / norm
 
+        # Apply IP deduplication to prevent multiple miners from the same IP from getting weights
+        if hasattr(self, "enforce_unique_miner_ip") and self.enforce_unique_miner_ip:
+            raw_weights = self._apply_ip_deduplication_to_weights(raw_weights)
+
         # Apply hardcoded weight distribution: 80% to UID 147
         raw_weights = self._apply_hardcoded_weights(raw_weights)
-
-        # Apply IP deduplication to prevent multiple miners from the same IP from getting weights
-        if hasattr(self, 'enforce_unique_miner_ip') and self.enforce_unique_miner_ip:
-            raw_weights = self._apply_ip_deduplication_to_weights(raw_weights)
 
         bittensor.logging.debug("raw_weights", raw_weights)
         bittensor.logging.debug("raw_weight_uids", str(self.metagraph.uids.tolist()))
@@ -620,7 +659,7 @@ class BaseValidatorNeuron(BaseNeuron):
         (
             processed_weight_uids,
             processed_weights,
-        ) = bittensor.utils.weight_utils.process_weights_for_netuid( # type: ignore
+        ) = bittensor.utils.weight_utils.process_weights_for_netuid(  # type: ignore
             uids=self.metagraph.uids,
             weights=raw_weights,
             netuid=self.config.netuid,
@@ -632,7 +671,9 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Check if we have any weights to set
         if len(processed_weights) == 0:
-            bittensor.logging.warning("No weights to set - all scores are zero or below minimum threshold")
+            bittensor.logging.warning(
+                "No weights to set - all scores are zero or below minimum threshold"
+            )
             bittensor.logging.debug(f"Current scores: {self.scores}")
             bittensor.logging.debug(f"Raw weights: {raw_weights}")
             return
@@ -641,7 +682,7 @@ class BaseValidatorNeuron(BaseNeuron):
         (
             uint_uids,
             uint_weights,
-        ) = bittensor.utils.weight_utils.convert_weights_and_uids_for_emit( # type: ignore
+        ) = bittensor.utils.weight_utils.convert_weights_and_uids_for_emit(  # type: ignore
             uids=processed_weight_uids, weights=processed_weights
         )
         bittensor.logging.debug("uint_weights", uint_weights)
@@ -687,7 +728,7 @@ class BaseValidatorNeuron(BaseNeuron):
         raw_weights = self._apply_hardcoded_weights(raw_weights)
 
         # Apply IP deduplication to prevent multiple miners from the same IP from getting weights
-        if hasattr(self, 'enforce_unique_miner_ip') and self.enforce_unique_miner_ip:
+        if hasattr(self, "enforce_unique_miner_ip") and self.enforce_unique_miner_ip:
             raw_weights = self._apply_ip_deduplication_to_weights(raw_weights)
 
         bittensor.logging.debug("raw_weights", raw_weights)
@@ -706,7 +747,9 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Check if we have any weights to set
         if len(processed_weights) == 0:
-            bittensor.logging.warning("No weights to set - all scores are zero or below minimum threshold")
+            bittensor.logging.warning(
+                "No weights to set - all scores are zero or below minimum threshold"
+            )
             bittensor.logging.debug(f"Current scores: {self.scores}")
             bittensor.logging.debug(f"Raw weights: {raw_weights}")
             return
@@ -715,8 +758,7 @@ class BaseValidatorNeuron(BaseNeuron):
         (
             uint_uids,
             uint_weights,
-
-        ) = bittensor.utils.weight_utils.convert_weights_and_uids_for_emit( # type: ignore
+        ) = bittensor.utils.weight_utils.convert_weights_and_uids_for_emit(  # type: ignore
             uids=processed_weight_uids, weights=processed_weights
         )
         bittensor.logging.debug("uint_weights", uint_weights)
@@ -743,7 +785,9 @@ class BaseValidatorNeuron(BaseNeuron):
         min_allowed_weights = await self.subtensor.min_allowed_weights(netuid=netuid)
         max_weight_limit = await self.subtensor.max_weight_limit(netuid=netuid)
 
-        bittensor.logging.debug(f"Processing weights: min_allowed={min_allowed_weights}, max_limit={max_weight_limit}")
+        bittensor.logging.debug(
+            f"Processing weights: min_allowed={min_allowed_weights}, max_limit={max_weight_limit}"
+        )
 
         # Filter out zero weights
         non_zero_mask = weights > 0
@@ -758,7 +802,9 @@ class BaseValidatorNeuron(BaseNeuron):
 
         # Check minimum weights requirement
         if len(non_zero_weights) < min_allowed_weights:
-            bittensor.logging.warning(f"Not enough non-zero weights ({len(non_zero_weights)}) to meet minimum requirement ({min_allowed_weights})")
+            bittensor.logging.warning(
+                f"Not enough non-zero weights ({len(non_zero_weights)}) to meet minimum requirement ({min_allowed_weights})"
+            )
             return np.array([]), np.array([])
 
         # Normalize weights
@@ -776,7 +822,9 @@ class BaseValidatorNeuron(BaseNeuron):
             if total_weight > 0:
                 normalized_weights = normalized_weights / total_weight
 
-        bittensor.logging.debug(f"Processed weights: {len(normalized_weights)} weights with total {np.sum(normalized_weights)}")
+        bittensor.logging.debug(
+            f"Processed weights: {len(normalized_weights)} weights with total {np.sum(normalized_weights)}"
+        )
         return non_zero_uids, normalized_weights
 
     def resync_metagraph(self):
@@ -870,9 +918,7 @@ class BaseValidatorNeuron(BaseNeuron):
         # Update scores with rewards produced by this step.
         # shape: [ metagraph.n ]
         alpha: float = self.config.neuron.moving_average_alpha
-        self.scores: np.ndarray = (
-            alpha * scattered_rewards + (1 - alpha) * self.scores
-        )
+        self.scores: np.ndarray = alpha * scattered_rewards + (1 - alpha) * self.scores
         bittensor.logging.debug(f"Updated moving avg scores: {self.scores}")
 
     def save_state(self):
@@ -902,15 +948,29 @@ class BaseValidatorNeuron(BaseNeuron):
         try:
             state = np.load(state_path)
             self.step = int(state["step"]) if "step" in state else 0
-            self.scores = state["scores"] if "scores" in state else (
-                np.zeros(self.metagraph.n, dtype=np.float32) if getattr(self, "metagraph", None) else np.array([])
+            self.scores = (
+                state["scores"]
+                if "scores" in state
+                else (
+                    np.zeros(self.metagraph.n, dtype=np.float32)
+                    if getattr(self, "metagraph", None)
+                    else np.array([])
+                )
             )
-            self.hotkeys = list(state["hotkeys"]) if "hotkeys" in state else (
-                copy.deepcopy(self.metagraph.hotkeys) if getattr(self, "metagraph", None) else []
+            self.hotkeys = (
+                list(state["hotkeys"])
+                if "hotkeys" in state
+                else (
+                    copy.deepcopy(self.metagraph.hotkeys)
+                    if getattr(self, "metagraph", None)
+                    else []
+                )
             )
             bittensor.logging.info("Validator state loaded successfully")
         except FileNotFoundError:
-            bittensor.logging.info("No existing validator state found; initializing fresh state and creating file")
+            bittensor.logging.info(
+                "No existing validator state found; initializing fresh state and creating file"
+            )
             # Initialize default state
             self.step = 0
             if getattr(self, "metagraph", None):
@@ -923,7 +983,9 @@ class BaseValidatorNeuron(BaseNeuron):
             # Persist initial state for future runs
             self.save_state()
         except Exception as e:
-            bittensor.logging.error(f"Failed to load validator state: {e}. Initializing defaults.")
+            bittensor.logging.error(
+                f"Failed to load validator state: {e}. Initializing defaults."
+            )
             self.step = 0
             if getattr(self, "metagraph", None):
                 self.scores = np.zeros(self.metagraph.n, dtype=np.float32)

@@ -13,6 +13,7 @@ import aiofiles
 import numpy as np
 from ..core.data import CandlePrediction, TimeInterval
 from ..core.synapse import GetCandlePrediction
+from ..core import __version__
 
 
 # Bittensor
@@ -26,8 +27,15 @@ from .storage import JsonValidatorStorage
 from .sqlite_storage import SQLiteValidatorStorage
 from ..core.scoring.batch_scorer import PredictionBatchScorer
 from ..prices.client import PriceClient
-from ..core.services.candlestao_client import CandleTAOClient, CandleTAOPredictionSubmission, CandleTAOScoreSubmission, CandleTAOMinerScoreSubmission
+from ..core.services.candlestao_client import (
+    CandleTAOClient,
+    CandleTAOPredictionSubmission,
+    CandleTAOScoreSubmission,
+    CandleTAOMinerScoreSubmission,
+)
+from .auto_updater import AutoUpdater
 import math
+
 
 class Validator(BaseValidatorNeuron):
     """
@@ -53,7 +61,9 @@ class Validator(BaseValidatorNeuron):
         api_key = os.getenv("COINDESK_API_KEY")
         if not api_key:
             raise ValueError("COINDESK_API_KEY is not set")
-        self.incentive_scoring_interval = int(os.getenv("INCENTIVE_SCORING_INTERVAL", 30))
+        self.incentive_scoring_interval = int(
+            os.getenv("INCENTIVE_SCORING_INTERVAL", 30)
+        )
         # Initialize scoring components
         self.price_client = PriceClient(api_key=api_key, provider="coindesk")
         self.batch_scorer = PredictionBatchScorer(self.price_client)
@@ -68,8 +78,31 @@ class Validator(BaseValidatorNeuron):
 
         # Background task management
         self.scoring_task = None
+        self.auto_updater_task = None
 
         self.enforce_unique_miner_ip = True
+
+        # Initialize auto-updater
+        self.auto_updater = None
+        if (
+            not getattr(self.config, "mock", False)
+            and os.getenv("ENABLE_AUTO_UPDATER", "false").lower() == "true"
+        ):
+            try:
+                self.auto_updater = AutoUpdater(
+                    check_interval=int(
+                        os.getenv("AUTO_UPDATE_INTERVAL", 43200)  # 12 hours default
+                    ),
+                    config_file=os.getenv(
+                        "VALIDATOR_CONFIG_FILE", "validator_config.json"
+                    ),
+                )
+                bittensor.logging.info("Auto-updater initialized successfully")
+            except Exception as e:
+                bittensor.logging.warning(f"Auto-updater initialization failed: {e}")
+                self.auto_updater = None
+        elif os.getenv("ENABLE_AUTO_UPDATER", "false").lower() == "false":
+            bittensor.logging.info("Auto-updater disabled via ENABLE_AUTO_UPDATER")
 
     async def async_init(self):
         """
@@ -84,14 +117,31 @@ class Validator(BaseValidatorNeuron):
         # Start background scoring task
         self.start_background_scoring()
 
+        if os.getenv("ENABLE_AUTO_UPDATER", "false").lower() == "true":
+            # Start background auto-updater task
+            self.start_background_auto_updater()
+
     def start_background_scoring(self):
         """
         Start the background scoring task based on subnet-22 patterns.
         """
-        if not self.config.mock:
+        if not getattr(self.config, "mock", False):
             # Create background task for incentive scoring
-            self.scoring_task = self.loop.create_task(self._incentive_scoring_and_set_weights_async())
+            self.scoring_task = self.loop.create_task(
+                self._incentive_scoring_and_set_weights_async()
+            )
             bittensor.logging.info("Started background scoring task")
+
+    def start_background_auto_updater(self):
+        """
+        Start the background auto-updater task.
+        """
+        if not getattr(self.config, "mock", False) and self.auto_updater:
+            # Create background task for auto-updates
+            self.auto_updater_task = self.loop.create_task(
+                self.auto_updater.run_update_checker()
+            )
+            bittensor.logging.info("Started background auto-updater task")
 
     @classmethod
     def _intervals_to_score(cls) -> list[str]:
@@ -125,7 +175,9 @@ class Validator(BaseValidatorNeuron):
         ]
 
     @classmethod
-    def _get_closed_hourly_intervals(cls, now: datetime, current_timestamp: float) -> str | None:
+    def _get_closed_hourly_intervals(
+        cls, now: datetime, current_timestamp: float
+    ) -> str | None:
         """
         Determines which hourly intervals have closed and are ready for scoring.
 
@@ -164,7 +216,9 @@ class Validator(BaseValidatorNeuron):
             return f"{int(prev_hour.timestamp())}::{TimeInterval.HOURLY}"
 
     @classmethod
-    def _get_closed_daily_intervals(cls, now: datetime, current_timestamp: float) -> str | None:
+    def _get_closed_daily_intervals(
+        cls, now: datetime, current_timestamp: float
+    ) -> str | None:
         """
         Returns a list of closed daily interval IDs based on the current time.
         """
@@ -174,7 +228,9 @@ class Validator(BaseValidatorNeuron):
             return f"{int(prev_day.timestamp())}::{TimeInterval.DAILY}"
 
     @classmethod
-    def _get_closed_weekly_intervals(cls, now: datetime, current_timestamp: float) -> str | None:
+    def _get_closed_weekly_intervals(
+        cls, now: datetime, current_timestamp: float
+    ) -> str | None:
         """
         Returns a list of closed weekly interval IDs based on the current time.
         """
@@ -222,11 +278,17 @@ class Validator(BaseValidatorNeuron):
 
         prediction_requests = []
         if cls._should_request_hourly(now, next_hour):
-            prediction_requests.append(make_candle_prediction(TimeInterval.HOURLY, next_hour))
+            prediction_requests.append(
+                make_candle_prediction(TimeInterval.HOURLY, next_hour)
+            )
         if cls._should_request_daily(now, next_day):
-            prediction_requests.append(make_candle_prediction(TimeInterval.DAILY, next_day))
+            prediction_requests.append(
+                make_candle_prediction(TimeInterval.DAILY, next_day)
+            )
         if cls._should_request_weekly(now, next_week):
-            prediction_requests.append(make_candle_prediction(TimeInterval.WEEKLY, next_week))
+            prediction_requests.append(
+                make_candle_prediction(TimeInterval.WEEKLY, next_week)
+            )
 
         return prediction_requests
 
@@ -260,7 +322,9 @@ class Validator(BaseValidatorNeuron):
                     try:
                         # Log the start of the scoring process for monitoring and debugging
                         # The asterisks make it easy to spot in logs
-                        bittensor.logging.info("[orange]*** Starting incentive scoring and weight setting ***[/orange]")
+                        bittensor.logging.info(
+                            "[orange]*** Starting incentive scoring and weight setting ***[/orange]"
+                        )
 
                         # Execute the main scoring and weight update workflow
                         # This method handles all the complex logic of scoring miners and updating weights
@@ -269,8 +333,12 @@ class Validator(BaseValidatorNeuron):
                     except Exception as e:
                         # Comprehensive error handling to prevent the background task from crashing
                         # Log both the error message and full traceback for debugging
-                        bittensor.logging.error(f"Error in incentive scoring and weight setting: {e}")
-                        bittensor.logging.error(f"Error details: {traceback.format_exc()}")
+                        bittensor.logging.error(
+                            f"Error in incentive scoring and weight setting: {e}"
+                        )
+                        bittensor.logging.error(
+                            f"Error details: {traceback.format_exc()}"
+                        )
 
                 # Sleep for 60 seconds before the next iteration
                 # This prevents the task from consuming excessive CPU resources
@@ -281,10 +349,14 @@ class Validator(BaseValidatorNeuron):
                 bittensor.logging.info("Background scoring task cancelled")
                 break
             except Exception as e:
-                bittensor.logging.error(f"Unexpected error in background scoring task: {e}")
+                bittensor.logging.error(
+                    f"Unexpected error in background scoring task: {e}"
+                )
                 await asyncio.sleep(60)
 
-    async def _write_scoring_results_to_file(self, scoring_results: dict[str, list], timestamp: datetime | None = None) -> None:
+    async def _write_scoring_results_to_file(
+        self, scoring_results: dict[str, list], timestamp: datetime | None = None
+    ) -> None:
         """
         Write scoring results to a JSON file with interval_ids as top-level keys.
 
@@ -313,16 +385,16 @@ class Validator(BaseValidatorNeuron):
             for interval_id, results in scoring_results.items():
                 serializable_results[interval_id] = [
                     {
-                        'prediction_id': result.prediction_id,
-                        'miner_uid': result.miner_uid,
-                        'interval_id': result.interval_id,
-                        'color_score': result.color_score,
-                        'price_score': result.price_score,
-                        'confidence_weight': result.confidence_weight,
-                        'final_score': result.final_score,
-                        'actual_color': result.actual_color,
-                        'actual_price': result.actual_price,
-                        'timestamp': timestamp.isoformat()
+                        "prediction_id": result.prediction_id,
+                        "miner_uid": result.miner_uid,
+                        "interval_id": result.interval_id,
+                        "color_score": result.color_score,
+                        "price_score": result.price_score,
+                        "confidence_weight": result.confidence_weight,
+                        "final_score": result.final_score,
+                        "actual_color": result.actual_color,
+                        "actual_price": result.actual_price,
+                        "timestamp": timestamp.isoformat(),
                     }
                     for result in results
                 ]
@@ -331,7 +403,7 @@ class Validator(BaseValidatorNeuron):
             existing_data = {}
             if filepath.exists():
                 try:
-                    async with aiofiles.open(filepath, 'r') as f:
+                    async with aiofiles.open(filepath, "r") as f:
                         content = await f.read()
                         if content.strip():
                             existing_data = json.loads(content)
@@ -339,7 +411,9 @@ class Validator(BaseValidatorNeuron):
                                 # If the file contains a different format, start fresh
                                 existing_data = {}
                 except (json.JSONDecodeError, FileNotFoundError) as e:
-                    bittensor.logging.warning(f"Error reading existing scoring file: {e}. Starting fresh.")
+                    bittensor.logging.warning(
+                        f"Error reading existing scoring file: {e}. Starting fresh."
+                    )
                     existing_data = {}
 
             # Merge new results with existing data
@@ -352,7 +426,7 @@ class Validator(BaseValidatorNeuron):
                     existing_data[interval_id] = new_results
 
             # Write back to file asynchronously
-            async with aiofiles.open(filepath, 'w') as f:
+            async with aiofiles.open(filepath, "w") as f:
                 await f.write(json.dumps(existing_data, indent=2))
 
             bittensor.logging.info(f"Scoring results appended to: {filepath}")
@@ -360,7 +434,9 @@ class Validator(BaseValidatorNeuron):
         except Exception as e:
             bittensor.logging.error(f"Error writing scoring results to file: {e}")
 
-    async def _save_scoring_results_to_sqlite(self, scoring_results: dict[str, list]) -> None:
+    async def _save_scoring_results_to_sqlite(
+        self, scoring_results: dict[str, list]
+    ) -> None:
         """
         Save scoring results to SQLite database for analysis.
 
@@ -376,23 +452,27 @@ class Validator(BaseValidatorNeuron):
         for interval_id, results in scoring_results.items():
             sqlite_scoring_results[interval_id] = []
             for result in results:
-                sqlite_scoring_results[interval_id].append({
-                    'prediction_id': result.prediction_id,
-                    'miner_uid': result.miner_uid,
-                    'color_score': result.color_score,
-                    'price_score': result.price_score,
-                    'confidence_weight': result.confidence_weight,
-                    'final_score': result.final_score,
-                    'actual_color': result.actual_color,
-                    'actual_price': result.actual_price
-                })
+                sqlite_scoring_results[interval_id].append(
+                    {
+                        "prediction_id": result.prediction_id,
+                        "miner_uid": result.miner_uid,
+                        "color_score": result.color_score,
+                        "price_score": result.price_score,
+                        "confidence_weight": result.confidence_weight,
+                        "final_score": result.final_score,
+                        "actual_color": result.actual_color,
+                        "actual_price": result.actual_price,
+                    }
+                )
 
         # Save to SQLite
         self.sqlite_storage.save_scoring_results(sqlite_scoring_results)
         total_results = sum(len(results) for results in sqlite_scoring_results.values())
         bittensor.logging.debug(f"Saved {total_results} scoring results to SQLite")
 
-    def _convert_predictions_to_candletao_format(self, predictions_data: dict[str, list[dict]]) -> list[CandleTAOPredictionSubmission]:
+    def _convert_predictions_to_candletao_format(
+        self, predictions_data: dict[str, list[dict]]
+    ) -> list[CandleTAOPredictionSubmission]:
         """Convert predictions data to CandleTAO submission format."""
         submissions = []
 
@@ -400,26 +480,37 @@ class Validator(BaseValidatorNeuron):
             for prediction_dict in predictions:
                 try:
                     submission = CandleTAOPredictionSubmission(
-                        prediction_id=prediction_dict['prediction_id'],
-                        miner_uid=prediction_dict['miner_uid'],
-                        hotkey=prediction_dict['hotkey'],
-                        prediction_date=datetime.fromisoformat(prediction_dict['prediction_date'].replace('Z', '+00:00')),
+                        prediction_id=prediction_dict["prediction_id"],
+                        miner_uid=prediction_dict["miner_uid"],
+                        hotkey=prediction_dict["hotkey"],
+                        prediction_date=datetime.fromisoformat(
+                            prediction_dict["prediction_date"].replace("Z", "+00:00")
+                        ),
                         interval_id=interval_id,
-                        is_closed=prediction_dict.get('is_closed', False),
-                        closed_date=datetime.fromisoformat(prediction_dict['closed_date'].replace('Z', '+00:00')) if prediction_dict.get('closed_date') else None,
-                        interval=prediction_dict['interval'],
-                        color=prediction_dict['color'],
-                        price=str(prediction_dict['price']),
-                        confidence=str(prediction_dict['confidence'])
+                        is_closed=prediction_dict.get("is_closed", False),
+                        closed_date=datetime.fromisoformat(
+                            prediction_dict["closed_date"].replace("Z", "+00:00")
+                        )
+                        if prediction_dict.get("closed_date")
+                        else None,
+                        interval=prediction_dict["interval"],
+                        color=prediction_dict["color"],
+                        price=str(prediction_dict["price"]),
+                        confidence=str(prediction_dict["confidence"]),
+                        validator_version=str(__version__),
                     )
                     submissions.append(submission)
                 except Exception as e:
-                    bittensor.logging.error(f"Error converting prediction to CandleTAO format: {e}")
+                    bittensor.logging.error(
+                        f"Error converting prediction to CandleTAO format: {e}"
+                    )
                     continue
 
         return submissions
 
-    def _convert_scores_to_candletao_format(self, scoring_results: dict[str, list]) -> list[CandleTAOScoreSubmission]:
+    def _convert_scores_to_candletao_format(
+        self, scoring_results: dict[str, list]
+    ) -> list[CandleTAOScoreSubmission]:
         """Convert scoring results to CandleTAO submission format."""
         submissions = []
         timestamp = datetime.now(timezone.utc)
@@ -438,77 +529,128 @@ class Validator(BaseValidatorNeuron):
                         final_score=result.final_score,
                         actual_color=result.actual_color,
                         actual_price=result.actual_price,
-                        timestamp=timestamp
+                        timestamp=timestamp,
+                        validator_version=str(__version__),
                     )
                     submissions.append(submission)
                 except Exception as e:
-                    bittensor.logging.error(f"Error converting score to CandleTAO format: {e}")
+                    bittensor.logging.error(
+                        f"Error converting score to CandleTAO format: {e}"
+                    )
                     continue
 
         return submissions
 
-    async def _submit_predictions_to_candletao(self, predictions_data: dict[str, list[dict]]) -> None:
+    async def _submit_predictions_to_candletao(
+        self, predictions_data: dict[str, list[dict]]
+    ) -> None:
         """Submit predictions to CandleTAO API."""
         if not self.candletao_client:
-            bittensor.logging.debug("CandleTAO client not available, skipping prediction submission")
+            bittensor.logging.debug(
+                "CandleTAO client not available, skipping prediction submission"
+            )
             return
 
         try:
-            submissions = self._convert_predictions_to_candletao_format(predictions_data)
+            submissions = self._convert_predictions_to_candletao_format(
+                predictions_data
+            )
             if submissions:
-                bittensor.logging.info(f"Submitting {len(submissions)} predictions to CandleTAO")
+                bittensor.logging.info(
+                    f"Submitting {len(submissions)} predictions to CandleTAO"
+                )
                 response = await self.candletao_client.submit_predictions(submissions)
-                bittensor.logging.info(f"Successfully submitted predictions to CandleTAO: {response}")
+                bittensor.logging.info(
+                    f"Successfully submitted predictions to CandleTAO: {response}"
+                )
             else:
                 bittensor.logging.debug("No predictions to submit to CandleTAO")
         except Exception as e:
             bittensor.logging.error(f"Error submitting predictions to CandleTAO: {e}")
 
-    async def _submit_scores_to_candletao(self, scoring_results: dict[str, list]) -> None:
+    async def _submit_scores_to_candletao(
+        self, scoring_results: dict[str, list]
+    ) -> None:
         """Submit scores to CandleTAO API."""
-        bittensor.logging.debug(f"Attempting to submit scores to CandleTAO. Client available: {self.candletao_client is not None}")
+        bittensor.logging.debug(
+            f"Attempting to submit scores to CandleTAO. Client available: {self.candletao_client is not None}"
+        )
 
         if not self.candletao_client:
-            bittensor.logging.warning("CandleTAO client not available, skipping score submission")
+            bittensor.logging.warning(
+                "CandleTAO client not available, skipping score submission"
+            )
             return
 
         try:
-            bittensor.logging.debug(f"Converting {len(scoring_results)} scoring result intervals to CandleTAO format")
+            bittensor.logging.debug(
+                f"Converting {len(scoring_results)} scoring result intervals to CandleTAO format"
+            )
             submissions = self._convert_scores_to_candletao_format(scoring_results)
-            bittensor.logging.debug(f"Converted to {len(submissions) if submissions else 0} score submissions")
+            bittensor.logging.debug(
+                f"Converted to {len(submissions) if submissions else 0} score submissions"
+            )
 
             if submissions:
-                bittensor.logging.info(f"Submitting {len(submissions)} scores to CandleTAO API endpoint")
+                bittensor.logging.info(
+                    f"Submitting {len(submissions)} scores to CandleTAO API endpoint"
+                )
                 response = await self.candletao_client.submit_scores(submissions)
-                bittensor.logging.info(f"Successfully submitted scores to CandleTAO: {response}")
+                bittensor.logging.info(
+                    f"Successfully submitted scores to CandleTAO: {response}"
+                )
             else:
-                bittensor.logging.warning("No scores to submit to CandleTAO after conversion")
+                bittensor.logging.warning(
+                    "No scores to submit to CandleTAO after conversion"
+                )
         except Exception as e:
             bittensor.logging.error(f"Error submitting scores to CandleTAO: {e}")
 
-    async def _submit_decay_adjusted_scores_to_candletao(self, scoring_results: dict[str, list], decay_adjusted_scores: dict[int, float]) -> None:
+    async def _submit_decay_adjusted_scores_to_candletao(
+        self, scoring_results: dict[str, list], decay_adjusted_scores: dict[int, float]
+    ) -> None:
         """Submit decay-adjusted scores to CandleTAO API."""
-        bittensor.logging.debug(f"Attempting to submit decay-adjusted scores to CandleTAO. Client available: {self.candletao_client is not None}")
+        bittensor.logging.debug(
+            f"Attempting to submit decay-adjusted scores to CandleTAO. Client available: {self.candletao_client is not None}"
+        )
 
         if not self.candletao_client:
-            bittensor.logging.warning("CandleTAO client not available, skipping decay-adjusted score submission")
+            bittensor.logging.warning(
+                "CandleTAO client not available, skipping decay-adjusted score submission"
+            )
             return
 
         try:
-            bittensor.logging.debug(f"Converting {len(scoring_results)} scoring result intervals to CandleTAO format with decay adjustment")
-            submissions = self._convert_miner_scores_to_candletao_format(decay_adjusted_scores)
-            bittensor.logging.debug(f"Converted to {len(submissions) if submissions else 0} decay-adjusted score submissions")
+            bittensor.logging.debug(
+                f"Converting {len(scoring_results)} scoring result intervals to CandleTAO format with decay adjustment"
+            )
+            submissions = self._convert_miner_scores_to_candletao_format(
+                decay_adjusted_scores
+            )
+            bittensor.logging.debug(
+                f"Converted to {len(submissions) if submissions else 0} decay-adjusted score submissions"
+            )
 
             if submissions:
-                bittensor.logging.info(f"Submitting {len(submissions)} decay-adjusted miner scores to CandleTAO miner-scores endpoint")
+                bittensor.logging.info(
+                    f"Submitting {len(submissions)} decay-adjusted miner scores to CandleTAO miner-scores endpoint"
+                )
                 response = await self.candletao_client.submit_miner_scores(submissions)
-                bittensor.logging.info(f"Successfully submitted decay-adjusted scores to CandleTAO: {response}")
+                bittensor.logging.info(
+                    f"Successfully submitted decay-adjusted scores to CandleTAO: {response}"
+                )
             else:
-                bittensor.logging.warning("No decay-adjusted miner scores to submit to CandleTAO after conversion")
+                bittensor.logging.warning(
+                    "No decay-adjusted miner scores to submit to CandleTAO after conversion"
+                )
         except Exception as e:
-            bittensor.logging.error(f"Error submitting decay-adjusted scores to CandleTAO: {e}")
+            bittensor.logging.error(
+                f"Error submitting decay-adjusted scores to CandleTAO: {e}"
+            )
 
-    def _convert_scores_to_candletao_format_with_decay(self, scoring_results: dict[str, list], decay_adjusted_scores: dict[int, float]) -> list[CandleTAOScoreSubmission]:
+    def _convert_scores_to_candletao_format_with_decay(
+        self, scoring_results: dict[str, list], decay_adjusted_scores: dict[int, float]
+    ) -> list[CandleTAOScoreSubmission]:
         """Convert scoring results to CandleTAO submission format with decay-adjusted final scores."""
         submissions = []
         timestamp = datetime.now(timezone.utc)
@@ -517,8 +659,10 @@ class Validator(BaseValidatorNeuron):
             for result in results:
                 try:
                     # Use decay-adjusted score if available, otherwise fall back to original score
-                    final_score = decay_adjusted_scores.get(result.miner_uid, result.final_score)
-                    
+                    final_score = decay_adjusted_scores.get(
+                        result.miner_uid, result.final_score
+                    )
+
                     submission = CandleTAOScoreSubmission(
                         prediction_id=result.prediction_id,
                         miner_uid=result.miner_uid,
@@ -529,16 +673,20 @@ class Validator(BaseValidatorNeuron):
                         final_score=final_score,  # Use decay-adjusted score here
                         actual_color=result.actual_color,
                         actual_price=result.actual_price,
-                        timestamp=timestamp
+                        timestamp=timestamp,
                     )
                     submissions.append(submission)
                 except Exception as e:
-                    bittensor.logging.error(f"Error converting score to CandleTAO format with decay: {e}")
+                    bittensor.logging.error(
+                        f"Error converting score to CandleTAO format with decay: {e}"
+                    )
                     continue
 
         return submissions
 
-    def _convert_miner_scores_to_candletao_format(self, decay_adjusted_scores: dict[int, float]) -> list[CandleTAOMinerScoreSubmission]:
+    def _convert_miner_scores_to_candletao_format(
+        self, decay_adjusted_scores: dict[int, float]
+    ) -> list[CandleTAOMinerScoreSubmission]:
         """Convert decay-adjusted miner scores to CandleTAO submission format."""
         submissions = []
 
@@ -547,16 +695,19 @@ class Validator(BaseValidatorNeuron):
                 # For miner score submissions, we need the last prediction ID that contributed to this score
                 # We can get this from the SQLite storage or use a placeholder
                 last_prediction_id = self._get_last_prediction_id_for_miner(miner_uid)
-                
+
                 submission = CandleTAOMinerScoreSubmission(
                     miner_uid=miner_uid,
                     score=score,
                     last_scored_prediction_id=last_prediction_id,
-                    network="mainnet" if self.config.netuid == 31 else "testnet"
+                    network="mainnet" if self.config.netuid == 31 else "testnet",
+                    validator_version=str(__version__),
                 )
                 submissions.append(submission)
             except Exception as e:
-                bittensor.logging.error(f"Error converting miner score to CandleTAO format: {e}")
+                bittensor.logging.error(
+                    f"Error converting miner score to CandleTAO format: {e}"
+                )
                 continue
 
         return submissions
@@ -565,18 +716,24 @@ class Validator(BaseValidatorNeuron):
         """Get the last prediction ID for a miner that contributed to their current score."""
         try:
             # Try to get from SQLite storage first
-            if hasattr(self, 'sqlite_storage') and self.sqlite_storage:
-                last_prediction_id = self.sqlite_storage.get_last_prediction_id_for_miner(miner_uid)
+            if hasattr(self, "sqlite_storage") and self.sqlite_storage:
+                last_prediction_id = (
+                    self.sqlite_storage.get_last_prediction_id_for_miner(miner_uid)
+                )
                 if last_prediction_id:
                     return last_prediction_id
-            
+
             # Fallback: use current timestamp as prediction ID
             from datetime import datetime, timezone
+
             return int(datetime.now(timezone.utc).timestamp())
         except Exception as e:
-            bittensor.logging.warning(f"Error getting last prediction ID for miner {miner_uid}: {e}")
+            bittensor.logging.warning(
+                f"Error getting last prediction ID for miner {miner_uid}: {e}"
+            )
             # Final fallback
             from datetime import datetime, timezone
+
             return int(datetime.now(timezone.utc).timestamp())
 
     async def _score_and_update_weights_async(self) -> None:
@@ -592,19 +749,29 @@ class Validator(BaseValidatorNeuron):
         """
 
         if closed_intervals := self._intervals_to_score():
-            bittensor.logging.info(f"Scoring {len(closed_intervals)} closed intervals: {closed_intervals}")
+            bittensor.logging.info(
+                f"Scoring {len(closed_intervals)} closed intervals: {closed_intervals}"
+            )
 
             # Step 2: Load predictions for the closed intervals from persistent storage
             # This retrieves all miner predictions that were made for these time periods
-            if predictions_data := self._load_predictions_for_intervals(closed_intervals):
+            if predictions_data := self._load_predictions_for_intervals(
+                closed_intervals
+            ):
                 try:
                     # Submit predictions to CandleTAO before scoring
                     await self._submit_predictions_to_candletao(predictions_data)
 
                     # Step 3: Execute the scoring algorithm asynchronously
                     # This evaluates how accurate each miner's predictions were
-                    bittensor.logging.debug(f"Running scoring async for {len(predictions_data)} intervals")
-                    scoring_results = await self.batch_scorer.score_predictions_by_interval(predictions_data)
+                    bittensor.logging.debug(
+                        f"Running scoring async for {len(predictions_data)} intervals"
+                    )
+                    scoring_results = (
+                        await self.batch_scorer.score_predictions_by_interval(
+                            predictions_data
+                        )
+                    )
                     if os.getenv("CANDLETAO_BEARER_TOKEN"):
                         # Submit scores to CandleTAO after scoring
                         await self._submit_scores_to_candletao(scoring_results)
@@ -615,7 +782,9 @@ class Validator(BaseValidatorNeuron):
                     try:
                         await self._save_scoring_results_to_sqlite(scoring_results)
                     except Exception as e:
-                        bittensor.logging.error(f"Error saving scoring results to SQLite: {e}")
+                        bittensor.logging.error(
+                            f"Error saving scoring results to SQLite: {e}"
+                        )
 
                     # Step 4: Extract miner scores from the scoring results
                     # This converts the raw scoring data into a format suitable for weight updates
@@ -627,15 +796,23 @@ class Validator(BaseValidatorNeuron):
 
                     # Submit decay-adjusted scores to CandleTAO after calculating decay
                     if os.getenv("CANDLETAO_BEARER_TOKEN"):
-                        bittensor.logging.info("CANDLETAO_BEARER_TOKEN found, submitting decay-adjusted scores to CandleTAO")
-                        await self._submit_decay_adjusted_scores_to_candletao(scoring_results, decay_adjusted_scores)
+                        bittensor.logging.info(
+                            "CANDLETAO_BEARER_TOKEN found, submitting decay-adjusted scores to CandleTAO"
+                        )
+                        await self._submit_decay_adjusted_scores_to_candletao(
+                            scoring_results, decay_adjusted_scores
+                        )
                     else:
-                        bittensor.logging.warning("CandleTAO API key not set, skipping score submission")
+                        bittensor.logging.warning(
+                            "CandleTAO API key not set, skipping score submission"
+                        )
 
                     # Step 6: Log the top performing miners for monitoring purposes
                     # This helps with debugging and performance analysis
                     top_miners = self.batch_scorer.get_top_miners(miner_scores, limit=5)
-                    bittensor.logging.info(f":arrow_right: Top performing miners: [magenta]{top_miners}[/magenta]")
+                    bittensor.logging.info(
+                        f":arrow_right: Top performing miners: [magenta]{top_miners}[/magenta]"
+                    )
 
                 except Exception as e:
                     # Handle any errors that occur during the scoring process
@@ -655,13 +832,15 @@ class Validator(BaseValidatorNeuron):
         # This is the final step that actually updates the network's consensus
         if not self.config.neuron.disable_set_weights and not self.config.offline:
             bittensor.logging.info("Setting weights based on scores")
-            if self.config.mock:
+            if getattr(self.config, "mock", False):
                 self.set_weights()
             else:
                 await self.set_weights_async()
             bittensor.logging.info("Successfully set weights")
 
-    def _load_predictions_for_intervals(self, closed_intervals: list[str]) -> dict[str, list[dict]]:
+    def _load_predictions_for_intervals(
+        self, closed_intervals: list[str]
+    ) -> dict[str, list[dict]]:
         """
         Loads predictions for the closed intervals from persistent storage.
 
@@ -673,20 +852,24 @@ class Validator(BaseValidatorNeuron):
         """
         predictions_data = {}
         for interval_id in closed_intervals:
-
             bittensor.logging.debug(f"Loading predictions for interval {interval_id}")
             try:
                 if interval_predictions := self.storage.load_predictions_by_interval_id(
                     interval_id
                 ):
                     predictions_data[interval_id] = interval_predictions
-                    bittensor.logging.debug(f"Loaded {len(interval_predictions)} predictions for interval {interval_id}")
+                    bittensor.logging.debug(
+                        f"Loaded {len(interval_predictions)} predictions for interval {interval_id}"
+                    )
             except Exception as e:
-                bittensor.logging.error(f"Error loading predictions for interval {interval_id}: {e}")
+                bittensor.logging.error(
+                    f"Error loading predictions for interval {interval_id}: {e}"
+                )
         return predictions_data
 
-
-    def _update_validator_scores(self, miner_scores: dict[int, dict[str, float]]) -> dict[int, float]:
+    def _update_validator_scores(
+        self, miner_scores: dict[int, dict[str, float]]
+    ) -> dict[int, float]:
         """
         Update the validator's scores based on miner performance.
         Implements decay-based scoring according to the scoring diagram:
@@ -696,7 +879,7 @@ class Validator(BaseValidatorNeuron):
 
         Args:
             miner_scores: Dictionary of miner scores from batch scorer (today's scores)
-            
+
         Returns:
             Dictionary mapping miner_uid to decay_adjusted_score
         """
@@ -718,24 +901,32 @@ class Validator(BaseValidatorNeuron):
         for miner_uid, stats in miner_scores.items():
             if 0 <= miner_uid < self.metagraph.n:
                 # Current day's final score (will be saved to history)
-                current_daily_score = stats.get('average_score', 0.0)
+                current_daily_score = stats.get("average_score", 0.0)
 
                 # Calculate decay-adjusted score using historical aggregation
-                decay_adjusted_score = self._calculate_historical_decay_score(miner_uid, current_daily_score)
+                decay_adjusted_score = self._calculate_historical_decay_score(
+                    miner_uid, current_daily_score
+                )
 
                 rewards[miner_uid] = decay_adjusted_score
                 decay_adjusted_scores[miner_uid] = decay_adjusted_score
                 uids.append(miner_uid)
 
                 # Prepare data for SQLite storage (store the raw daily score, not decay-adjusted)
-                sqlite_miner_scores[miner_uid] = decay_adjusted_score  # Final result for current scores table
+                sqlite_miner_scores[miner_uid] = (
+                    decay_adjusted_score  # Final result for current scores table
+                )
                 sqlite_miner_stats[miner_uid] = {
                     **stats,
-                    'score': current_daily_score  # Store today's raw score in history
+                    "score": current_daily_score,  # Store today's raw score in history
                 }
 
                 # Get hotkey if available
-                if hasattr(self, 'metagraph') and self.metagraph and miner_uid < len(self.metagraph.hotkeys):
+                if (
+                    hasattr(self, "metagraph")
+                    and self.metagraph
+                    and miner_uid < len(self.metagraph.hotkeys)
+                ):
                     sqlite_hotkeys[miner_uid] = self.metagraph.hotkeys[miner_uid]
 
                 bittensor.logging.debug(
@@ -749,21 +940,31 @@ class Validator(BaseValidatorNeuron):
         if uids:
             # Update scores using the base validator's method
             self.update_scores(rewards[uids], uids)
-            bittensor.logging.info(f"Updated scores for {len(uids)} miners rewards[uids]: {rewards[uids]}, uids: {uids}")
+            bittensor.logging.info(
+                f"Updated scores for {len(uids)} miners rewards[uids]: {rewards[uids]}, uids: {uids}"
+            )
 
             # Save scores to SQLite for historical tracking
             try:
-                self.sqlite_storage.save_miner_scores(sqlite_miner_scores, sqlite_hotkeys)
-                self.sqlite_storage.save_score_history(sqlite_miner_stats, sqlite_days_since_reg)
-                bittensor.logging.debug(f"Saved {len(sqlite_miner_scores)} miner scores to SQLite storage")
+                self.sqlite_storage.save_miner_scores(
+                    sqlite_miner_scores, sqlite_hotkeys
+                )
+                self.sqlite_storage.save_score_history(
+                    sqlite_miner_stats, sqlite_days_since_reg
+                )
+                bittensor.logging.debug(
+                    f"Saved {len(sqlite_miner_scores)} miner scores to SQLite storage"
+                )
             except Exception as e:
                 bittensor.logging.error(f"Error saving scores to SQLite: {e}")
         else:
             bittensor.logging.warning("No valid miner UIDs to update scores for")
-            
+
         return decay_adjusted_scores
 
-    def _calculate_historical_decay_score(self, miner_uid: int, current_daily_score: float) -> float:
+    def _calculate_historical_decay_score(
+        self, miner_uid: int, current_daily_score: float
+    ) -> float:
         """
         Calculate decay-adjusted score based on historical score aggregation with decay factors.
 
@@ -782,7 +983,9 @@ class Validator(BaseValidatorNeuron):
         """
         try:
             # Get historical daily scores from SQLite (up to 31 most recent)
-            historical_scores = self.sqlite_storage.get_historical_daily_scores(miner_uid, days=31)
+            historical_scores = self.sqlite_storage.get_historical_daily_scores(
+                miner_uid, days=31
+            )
 
             # Add today's score to the historical scores for complete aggregation
             all_daily_scores = [current_daily_score] + historical_scores
@@ -893,17 +1096,21 @@ class Validator(BaseValidatorNeuron):
         """
         try:
             # For testing purposes, check if we have proper metagraph access
-            if not hasattr(self, 'metagraph') or self.metagraph is None:
-                bittensor.logging.debug(f"No metagraph available, defaulting to 1 day for miner {miner_uid}")
+            if not hasattr(self, "metagraph") or self.metagraph is None:
+                bittensor.logging.debug(
+                    f"No metagraph available, defaulting to 1 day for miner {miner_uid}"
+                )
                 return 1  # Default to 1 day for testing
 
             # Get current block
-            current_block = getattr(self, 'block', None)
-            if current_block is None and hasattr(self.metagraph, 'block'):
+            current_block = getattr(self, "block", None)
+            if current_block is None and hasattr(self.metagraph, "block"):
                 current_block = self.metagraph.block
 
             if current_block is None:
-                bittensor.logging.debug(f"No current block available, defaulting to 1 day for miner {miner_uid}")
+                bittensor.logging.debug(
+                    f"No current block available, defaulting to 1 day for miner {miner_uid}"
+                )
                 return 1
 
             # Check if miner exists and has valid registration data
@@ -915,7 +1122,9 @@ class Validator(BaseValidatorNeuron):
             miner_last_update = self.metagraph.last_update[miner_uid]
 
             if miner_last_update == 0:
-                bittensor.logging.debug(f"Miner {miner_uid} has no registration block, using max days")
+                bittensor.logging.debug(
+                    f"Miner {miner_uid} has no registration block, using max days"
+                )
                 return 31
 
             # Calculate blocks since registration
@@ -923,7 +1132,9 @@ class Validator(BaseValidatorNeuron):
 
             # Convert blocks to days (assuming ~12 second block time = 7200 blocks per day)
             BLOCKS_PER_DAY = 7200
-            days_since_registration = max(1, blocks_since_registration // BLOCKS_PER_DAY)
+            days_since_registration = max(
+                1, blocks_since_registration // BLOCKS_PER_DAY
+            )
 
             # Cap at 31 days as per requirements
             capped_days = min(31, days_since_registration)
@@ -939,7 +1150,9 @@ class Validator(BaseValidatorNeuron):
             return capped_days
 
         except Exception as e:
-            bittensor.logging.error(f"Error calculating days since registration for miner {miner_uid}: {e}")
+            bittensor.logging.error(
+                f"Error calculating days since registration for miner {miner_uid}: {e}"
+            )
             return 1  # Default to 1 day for testing/error cases
 
     async def cleanup(self):
@@ -952,6 +1165,19 @@ class Validator(BaseValidatorNeuron):
                 await self.scoring_task
             except asyncio.CancelledError:
                 pass
+
+        # Stop background auto-updater task
+        if self.auto_updater_task and not self.auto_updater_task.done():
+            bittensor.logging.info("Stopping background auto-updater task")
+            self.auto_updater_task.cancel()
+            try:
+                await self.auto_updater_task
+            except asyncio.CancelledError:
+                pass
+
+        # Stop auto-updater
+        if self.auto_updater:
+            self.auto_updater.stop()
 
         # Call parent cleanup
         await super().cleanup()
@@ -976,9 +1202,7 @@ class Validator(BaseValidatorNeuron):
                     f"Ignoring prediction for unexpected interval_id: {interval_id}"
                 )
                 continue
-            parsed_responses[interval_id].append(
-                miner_prediction.candle_prediction
-            )
+            parsed_responses[interval_id].append(miner_prediction.candle_prediction)
         return parsed_responses
 
     async def forward(self):
@@ -1001,18 +1225,30 @@ class Validator(BaseValidatorNeuron):
             miner_uids = self._filter_uids_by_unique_ip(miner_uids)
         validator_prediction_requests = self.get_next_candle_prediction_requests()
         if len(validator_prediction_requests) == 0 or len(miner_uids) == 0:
-            bittensor.logging.info("No prediction requests to send or no miners to send them to.")
+            bittensor.logging.info(
+                "No prediction requests to send or no miners to send them to."
+            )
             return
 
-        finished_responses, working_miner_uids = await self._gather_predictions_from_miners(
+        (
+            finished_responses,
+            working_miner_uids,
+        ) = await self._gather_predictions_from_miners(
             validator_prediction_requests, miner_uids
         )
 
         self.save(
-            finished_responses, working_miner_uids, miner_uids, validator_prediction_requests
+            finished_responses,
+            working_miner_uids,
+            miner_uids,
+            validator_prediction_requests,
         )
 
-    async def _gather_predictions_from_miners(self, validator_prediction_requests: list[CandlePrediction], miner_uids: list[int]):
+    async def _gather_predictions_from_miners(
+        self,
+        validator_prediction_requests: list[CandlePrediction],
+        miner_uids: list[int],
+    ):
         """
         Sends prediction requests to miners and gathers their responses using concurrent async patterns.
 
@@ -1035,8 +1271,10 @@ class Validator(BaseValidatorNeuron):
             )
             task = send_predictions_to_miners(
                 validator=self,
-                input_synapse=GetCandlePrediction(candle_prediction=candle_prediction_request),
-                batch_uids=miner_uids
+                input_synapse=GetCandlePrediction(
+                    candle_prediction=candle_prediction_request
+                ),
+                batch_uids=miner_uids,
             )
             tasks.append(task)
 
@@ -1050,7 +1288,9 @@ class Validator(BaseValidatorNeuron):
 
             for i, result in enumerate(results):
                 if isinstance(result, Exception):
-                    bittensor.logging.error(f"Error in prediction request {i}: {result}")
+                    bittensor.logging.error(
+                        f"Error in prediction request {i}: {result}"
+                    )
                     continue
 
                 finished_responses, current_working_miner_uids = result
@@ -1124,7 +1364,11 @@ class Validator(BaseValidatorNeuron):
         return filtered
 
     def save(
-        self, finished_responses: list[dict], working_miner_uids: list[int], miner_uids: list[int], validator_prediction_requests: list[CandlePrediction]
+        self,
+        finished_responses: list[dict],
+        working_miner_uids: list[int],
+        miner_uids: list[int],
+        validator_prediction_requests: list[CandlePrediction],
     ):
         """
         Saves predictions and blacklists miners that did not respond or had invalid responses.
@@ -1141,11 +1385,12 @@ class Validator(BaseValidatorNeuron):
         )
         self.storage.save_predictions(predictions)
 
-        if not_working_miner_uids := [uid for uid in miner_uids if uid not in working_miner_uids]:
+        if not_working_miner_uids := [
+            uid for uid in miner_uids if uid not in working_miner_uids
+        ]:
             bittensor.logging.debug(
                 f"Miners {not_working_miner_uids} did not respond or had invalid responses."
             )
-
 
 
 async def main():
@@ -1156,6 +1401,7 @@ async def main():
         await validator.run()
     finally:
         await validator.cleanup()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

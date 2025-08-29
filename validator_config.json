@@ -1,0 +1,8 @@
+{
+  "wallet_name": "validator",
+  "wallet_hotkey": "validator_default",
+  "last_update": null,
+  "previous_commit": null,
+  "check_interval": 300,
+  "update_history": []
+}

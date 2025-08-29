@@ -39,15 +39,15 @@ class TestEnforceUniqueMinerIpFlag:
         # When config.mock is True, default should be False
         cfg = MagicMock()
         cfg.mock = True
-        
+
         # Test the environment variable logic directly
         import os
-        
+
         # Clear the environment variable
         with patch.dict("os.environ", {"COINDESK_API_KEY": "test_api_key"}, clear=True):
             # The environment variable should not be set
             assert os.getenv("ENFORCE_UNIQUE_MINER_IP") is None
-            
+
             # Test the logic that would be used in the validator
             if os.getenv("ENFORCE_UNIQUE_MINER_IP") is None:
                 # No environment variable set, use config.mock to determine default
@@ -55,21 +55,24 @@ class TestEnforceUniqueMinerIpFlag:
             else:
                 # This branch should not be taken
                 enforce_flag = True
-            
+
             # When config.mock is True, enforce_flag should be False
             assert enforce_flag is False
 
     def test_env_true_overrides(self):
         cfg = MagicMock()
         cfg.mock = True
-        
+
         # Test the environment variable logic directly
         import os
-        
-        with patch.dict("os.environ", {"COINDESK_API_KEY": "test_api_key", "ENFORCE_UNIQUE_MINER_IP": "true"}):
+
+        with patch.dict(
+            "os.environ",
+            {"COINDESK_API_KEY": "test_api_key", "ENFORCE_UNIQUE_MINER_IP": "true"},
+        ):
             # The environment variable should be set to "true"
             assert os.getenv("ENFORCE_UNIQUE_MINER_IP") == "true"
-            
+
             # Test the logic that would be used in the validator
             env_flag = os.getenv("ENFORCE_UNIQUE_MINER_IP")
             if env_flag is None:
@@ -82,21 +85,24 @@ class TestEnforceUniqueMinerIpFlag:
                     enforce_flag = False
                 else:
                     enforce_flag = not bool(getattr(cfg, "mock", False))
-            
+
             # When ENFORCE_UNIQUE_MINER_IP is "true", enforce_flag should be True
             assert enforce_flag is True
 
     def test_env_false_overrides(self):
         cfg = MagicMock()
         cfg.mock = False
-        
+
         # Test the environment variable logic directly
         import os
-        
-        with patch.dict("os.environ", {"COINDESK_API_KEY": "test_api_key", "ENFORCE_UNIQUE_MINER_IP": "0"}):
+
+        with patch.dict(
+            "os.environ",
+            {"COINDESK_API_KEY": "test_api_key", "ENFORCE_UNIQUE_MINER_IP": "0"},
+        ):
             # The environment variable should be set to "0"
             assert os.getenv("ENFORCE_UNIQUE_MINER_IP") == "0"
-            
+
             # Test the logic that would be used in the validator
             env_flag = os.getenv("ENFORCE_UNIQUE_MINER_IP")
             if env_flag is None:
@@ -109,7 +115,7 @@ class TestEnforceUniqueMinerIpFlag:
                     enforce_flag = False
                 else:
                     enforce_flag = not bool(getattr(cfg, "mock", False))
-            
+
             # When ENFORCE_UNIQUE_MINER_IP is "0", enforce_flag should be False
             assert enforce_flag is False
 
@@ -121,7 +127,9 @@ class TestFilterUidsByUniqueIp:
             1: make_axon_with("ip", "1.2.3.4"),
             2: make_axon_with("ip", "1.2.3.4"),  # duplicate IP with higher uid
             3: make_axon_with("external_ip", "5.6.7.8"),
-            4: make_axon_with(None, None),  # unknown IP, should be kept as its own bucket
+            4: make_axon_with(
+                None, None
+            ),  # unknown IP, should be kept as its own bucket
         }
         uids = [1, 2, 3, 4]
 
@@ -133,7 +141,7 @@ class TestFilterUidsByUniqueIp:
         # Create a validator instance for this test
         cfg = MagicMock()
         cfg.mock = False
-        
+
         with patch("candles.validator.validator.BaseValidatorNeuron.__init__"):
             with patch("candles.validator.validator.JsonValidatorStorage"):
                 with patch.object(Validator, "load_state"):
@@ -155,9 +163,13 @@ class TestFilterUidsByUniqueIp:
         base_validator.metagraph.axons = {
             1: make_axon_with("ip", "1.2.3.4"),
             2: make_axon_with("ip", "0.0.0.0"),  # exempted IP
-            3: make_axon_with("ip", "0.0.0.0"),  # another exempted IP (should both be kept)
+            3: make_axon_with(
+                "ip", "0.0.0.0"
+            ),  # another exempted IP (should both be kept)
             4: make_axon_with("ip", "5.6.7.8"),
-            5: make_axon_with("ip", "1.2.3.4"),  # duplicate of IP 1.2.3.4 (should be filtered)
+            5: make_axon_with(
+                "ip", "1.2.3.4"
+            ),  # duplicate of IP 1.2.3.4 (should be filtered)
         }
         uids = [1, 2, 3, 4, 5]
 
@@ -172,11 +184,11 @@ class TestFilterUidsByUniqueIp:
         """Test that IP 0.0.0.0 is exempted regardless of which IP attribute contains it."""
         # Setup metagraph axons with 0.0.0.0 in different IP attributes
         base_validator.metagraph.axons = {
-            1: make_axon_with("ip", "0.0.0.0"),      # in 'ip' attribute
+            1: make_axon_with("ip", "0.0.0.0"),  # in 'ip' attribute
             2: make_axon_with("external_ip", "0.0.0.0"),  # in 'external_ip' attribute
-            3: make_axon_with("ip_str", "0.0.0.0"),   # in 'ip_str' attribute
+            3: make_axon_with("ip_str", "0.0.0.0"),  # in 'ip_str' attribute
             4: make_axon_with("ip", "1.2.3.4"),
-            5: make_axon_with("ip", "1.2.3.4"),       # duplicate (should be filtered)
+            5: make_axon_with("ip", "1.2.3.4"),  # duplicate (should be filtered)
         }
         uids = [1, 2, 3, 4, 5]
 
@@ -191,12 +203,14 @@ class TestFilterUidsByUniqueIp:
         """Test that IP 0.0.0.0 exemption works alongside unknown IP handling."""
         # Setup metagraph axons with 0.0.0.0, unknown IPs, and regular IPs
         base_validator.metagraph.axons = {
-            1: make_axon_with("ip", "0.0.0.0"),      # exempted IP
-            2: make_axon_with("ip", "0.0.0.0"),      # another exempted IP
-            3: make_axon_with(None, None),            # unknown IP
-            4: make_axon_with(None, None),            # another unknown IP (should be kept as separate)
+            1: make_axon_with("ip", "0.0.0.0"),  # exempted IP
+            2: make_axon_with("ip", "0.0.0.0"),  # another exempted IP
+            3: make_axon_with(None, None),  # unknown IP
+            4: make_axon_with(
+                None, None
+            ),  # another unknown IP (should be kept as separate)
             5: make_axon_with("ip", "1.2.3.4"),
-            6: make_axon_with("ip", "1.2.3.4"),      # duplicate (should be filtered)
+            6: make_axon_with("ip", "1.2.3.4"),  # duplicate (should be filtered)
         }
         uids = [1, 2, 3, 4, 5, 6]
 
@@ -225,8 +239,8 @@ class TestFilterUidsByUniqueIp:
 
         # Test with mixed case and whitespace (should still be exempted)
         base_validator.metagraph.axons = {
-            4: make_axon_with("ip", " 0.0.0.0 "),    # with whitespace
-            5: make_axon_with("ip", "0.0.0.0"),      # normal
+            4: make_axon_with("ip", " 0.0.0.0 "),  # with whitespace
+            5: make_axon_with("ip", "0.0.0.0"),  # normal
         }
         uids = [4, 5]
 
@@ -270,9 +284,15 @@ class TestForwardIntegrationWithIpFilter:
                             hotkey="hk",
                         )
 
-                        with patch.object(v, "get_next_candle_prediction_requests") as mock_get_reqs:
-                            with patch("candles.validator.validator.get_miner_uids") as mock_get_uids:
-                                with patch.object(v, "_gather_predictions_from_miners") as mock_gather:
+                        with patch.object(
+                            v, "get_next_candle_prediction_requests"
+                        ) as mock_get_reqs:
+                            with patch(
+                                "candles.validator.validator.get_miner_uids"
+                            ) as mock_get_uids:
+                                with patch.object(
+                                    v, "_gather_predictions_from_miners"
+                                ) as mock_gather:
                                     mock_get_reqs.return_value = [pred]
                                     mock_get_uids.return_value = [1, 2, 3]
                                     mock_gather.return_value = ([MagicMock()], [1, 3])

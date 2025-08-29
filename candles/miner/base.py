@@ -192,11 +192,13 @@ class BaseMinerNeuron(BaseNeuron):
         if self.is_running:
             bittensor.logging.debug("Stopping miner in background task.")
             self.should_exit = True
-            if hasattr(self, 'background_task') and not self.background_task.done():
+            if hasattr(self, "background_task") and not self.background_task.done():
                 try:
                     await asyncio.wait_for(self.background_task, timeout=5.0)
                 except asyncio.TimeoutError:
-                    bittensor.logging.warning("Background task did not complete within timeout, cancelling.")
+                    bittensor.logging.warning(
+                        "Background task did not complete within timeout, cancelling."
+                    )
                     self.background_task.cancel()
                     try:
                         await self.background_task

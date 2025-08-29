@@ -16,13 +16,15 @@
 # DEALINGS IN THE SOFTWARE.
 # Standard Lib
 from typing import Optional
+
 # Third Party
 import pydantic
+
 # Bittensor
 import bittensor
+
 # Local
 from .data import CandlePrediction
-
 
 
 class BaseSynapse(bittensor.Synapse):
@@ -33,6 +35,7 @@ class BaseSynapse(bittensor.Synapse):
     version: Optional[int] = pydantic.Field(
         description="Protocol version", default=None
     )
+
 
 class GetCandlePrediction(BaseSynapse):
     """

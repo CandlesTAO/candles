@@ -36,7 +36,7 @@ class SQLiteValidatorStorage:
         self.config = config
 
         # Determine database path
-        if config and hasattr(config, 'sqlite_path') and config.sqlite_path is not None:
+        if config and hasattr(config, "sqlite_path") and config.sqlite_path is not None:
             db_dir = Path(config.sqlite_path)
         else:
             db_dir = Path.home() / ".candles" / "data"
@@ -116,7 +116,9 @@ class SQLiteValidatorStorage:
 
             conn.commit()
 
-    def save_miner_scores(self, miner_scores: dict[int, float], miner_hotkeys: dict[int, str]):
+    def save_miner_scores(
+        self, miner_scores: dict[int, float], miner_hotkeys: dict[int, str]
+    ):
         """
         Save current miner scores to database.
 
@@ -131,10 +133,13 @@ class SQLiteValidatorStorage:
             for miner_uid, score in miner_scores.items():
                 hotkey = miner_hotkeys.get(miner_uid) if miner_hotkeys else None
 
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO miner_scores (miner_uid, score, hotkey, updated_at)
                     VALUES (?, ?, ?, ?)
-                """, (miner_uid, score, hotkey, datetime.now(timezone.utc)))
+                """,
+                    (miner_uid, score, hotkey, datetime.now(timezone.utc)),
+                )
 
             conn.commit()
 
@@ -155,24 +160,27 @@ class SQLiteValidatorStorage:
             for interval_id, results in scoring_results.items():
                 for result in results:
                     try:
-                        conn.execute("""
+                        conn.execute(
+                            """
                             INSERT OR REPLACE INTO scoring_results (
                                 interval_id, prediction_id, miner_uid, color_score,
                                 price_score, confidence_weight, final_score,
                                 actual_color, actual_price, timestamp
                             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            interval_id,
-                            result.get('prediction_id'),
-                            result.get('miner_uid'),
-                            result.get('color_score'),
-                            result.get('price_score'),
-                            result.get('confidence_weight'),
-                            result.get('final_score'),
-                            result.get('actual_color'),
-                            result.get('actual_price'),
-                            datetime.now(timezone.utc)
-                        ))
+                        """,
+                            (
+                                interval_id,
+                                result.get("prediction_id"),
+                                result.get("miner_uid"),
+                                result.get("color_score"),
+                                result.get("price_score"),
+                                result.get("confidence_weight"),
+                                result.get("final_score"),
+                                result.get("actual_color"),
+                                result.get("actual_price"),
+                                datetime.now(timezone.utc),
+                            ),
+                        )
                         total_saved += 1
                     except Exception as e:
                         bittensor.logging.error(f"Error saving scoring result: {e}")
@@ -182,7 +190,11 @@ class SQLiteValidatorStorage:
 
         bittensor.logging.debug(f"Saved {total_saved} scoring results to SQLite")
 
-    def save_score_history(self, miner_stats: dict[int, dict[str, Any]], days_since_registration: dict[int, int]):
+    def save_score_history(
+        self,
+        miner_stats: dict[int, dict[str, Any]],
+        days_since_registration: dict[int, int],
+    ):
         """
         Save miner performance history to database.
 
@@ -195,31 +207,40 @@ class SQLiteValidatorStorage:
 
         with sqlite3.connect(self.db_path) as conn:
             for miner_uid, stats in miner_stats.items():
-                days_reg = days_since_registration.get(miner_uid, 1) if days_since_registration else 1
-                score = stats.get('score', 0.0)
+                days_reg = (
+                    days_since_registration.get(miner_uid, 1)
+                    if days_since_registration
+                    else 1
+                )
+                score = stats.get("score", 0.0)
                 decay_adjusted = score / days_reg
 
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO score_history (
                         miner_uid, score, average_score, prediction_count,
                         color_accuracy, price_accuracy, days_since_registration,
                         decay_adjusted_score, timestamp
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    miner_uid,
-                    score,
-                    stats.get('average_score'),
-                    stats.get('prediction_count'),
-                    stats.get('color_accuracy'),
-                    stats.get('price_accuracy'),
-                    days_reg,
-                    decay_adjusted,
-                    datetime.now(timezone.utc)
-                ))
+                """,
+                    (
+                        miner_uid,
+                        score,
+                        stats.get("average_score"),
+                        stats.get("prediction_count"),
+                        stats.get("color_accuracy"),
+                        stats.get("price_accuracy"),
+                        days_reg,
+                        decay_adjusted,
+                        datetime.now(timezone.utc),
+                    ),
+                )
 
             conn.commit()
 
-        bittensor.logging.debug(f"Saved score history for {len(miner_stats)} miners to SQLite")
+        bittensor.logging.debug(
+            f"Saved score history for {len(miner_stats)} miners to SQLite"
+        )
 
     def load_miner_scores(self) -> dict[int, float]:
         """
@@ -247,15 +268,20 @@ class SQLiteValidatorStorage:
             list of tuples (miner_uid, score) sorted by score descending
         """
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT miner_uid, score FROM miner_scores
                 ORDER BY score DESC
                 LIMIT ?
-            """, (limit,))
+            """,
+                (limit,),
+            )
 
             return cursor.fetchall()
 
-    def get_miner_performance_history(self, miner_uid: int, days: int = 30) -> list[dict[str, Any]]:
+    def get_miner_performance_history(
+        self, miner_uid: int, days: int = 30
+    ) -> list[dict[str, Any]]:
         """
         Get performance history for a specific miner.
 
@@ -267,7 +293,8 @@ class SQLiteValidatorStorage:
             list of performance records ordered by timestamp descending
         """
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT score, average_score, prediction_count, color_accuracy,
                        price_accuracy, days_since_registration, decay_adjusted_score,
                        timestamp
@@ -275,10 +302,20 @@ class SQLiteValidatorStorage:
                 WHERE miner_uid = ?
                 AND timestamp >= datetime('now', '-{} days')
                 ORDER BY timestamp DESC
-            """.format(days), (miner_uid,))
+            """.format(days),
+                (miner_uid,),
+            )
 
-            columns = ['score', 'average_score', 'prediction_count', 'color_accuracy',
-                      'price_accuracy', 'days_since_registration', 'decay_adjusted_score', 'timestamp']
+            columns = [
+                "score",
+                "average_score",
+                "prediction_count",
+                "color_accuracy",
+                "price_accuracy",
+                "days_since_registration",
+                "decay_adjusted_score",
+                "timestamp",
+            ]
 
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
@@ -293,16 +330,28 @@ class SQLiteValidatorStorage:
             list of scoring result dictionaries
         """
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT prediction_id, miner_uid, color_score, price_score,
                        confidence_weight, final_score, actual_color, actual_price, timestamp
                 FROM scoring_results
                 WHERE interval_id = ?
                 ORDER BY final_score DESC
-            """, (interval_id,))
+            """,
+                (interval_id,),
+            )
 
-            columns = ['prediction_id', 'miner_uid', 'color_score', 'price_score',
-                      'confidence_weight', 'final_score', 'actual_color', 'actual_price', 'timestamp']
+            columns = [
+                "prediction_id",
+                "miner_uid",
+                "color_score",
+                "price_score",
+                "confidence_weight",
+                "final_score",
+                "actual_color",
+                "actual_price",
+                "timestamp",
+            ]
 
             return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
@@ -318,19 +367,19 @@ class SQLiteValidatorStorage:
         with sqlite3.connect(self.db_path) as conn:
             # Get miner scores count
             cursor = conn.execute("SELECT COUNT(*) FROM miner_scores")
-            stats['miner_scores'] = cursor.fetchone()[0]
+            stats["miner_scores"] = cursor.fetchone()[0]
 
             # Get scoring results count
             cursor = conn.execute("SELECT COUNT(*) FROM scoring_results")
-            stats['scoring_results'] = cursor.fetchone()[0]
+            stats["scoring_results"] = cursor.fetchone()[0]
 
             # Get score history count
             cursor = conn.execute("SELECT COUNT(*) FROM score_history")
-            stats['score_history'] = cursor.fetchone()[0]
+            stats["score_history"] = cursor.fetchone()[0]
 
             # Get unique miners in history
             cursor = conn.execute("SELECT COUNT(DISTINCT miner_uid) FROM score_history")
-            stats['unique_miners_tracked'] = cursor.fetchone()[0]
+            stats["unique_miners_tracked"] = cursor.fetchone()[0]
 
             # Get date range of history
             cursor = conn.execute("""
@@ -339,7 +388,7 @@ class SQLiteValidatorStorage:
             """)
             date_range = cursor.fetchone()
             if date_range[0] and date_range[1]:
-                stats['history_date_range'] = f"{date_range[0]} to {date_range[1]}"
+                stats["history_date_range"] = f"{date_range[0]} to {date_range[1]}"
 
         return stats
 
@@ -352,24 +401,30 @@ class SQLiteValidatorStorage:
         """
         with sqlite3.connect(self.db_path) as conn:
             # Clean old score history
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 DELETE FROM score_history
                 WHERE timestamp < datetime('now', '-{} days')
-            """.format(days_to_keep))
+            """.format(days_to_keep)
+            )
 
             deleted_history = cursor.rowcount
 
             # Clean old scoring results
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 DELETE FROM scoring_results
                 WHERE timestamp < datetime('now', '-{} days')
-            """.format(days_to_keep))
+            """.format(days_to_keep)
+            )
 
             deleted_results = cursor.rowcount
 
             conn.commit()
 
-        bittensor.logging.info(f"Cleaned up {deleted_history} history records and {deleted_results} scoring results older than {days_to_keep} days")
+        bittensor.logging.info(
+            f"Cleaned up {deleted_history} history records and {deleted_results} scoring results older than {days_to_keep} days"
+        )
 
     def get_miner_score_trends(self, miner_uid: int, days: int = 7) -> dict[str, Any]:
         """
@@ -383,18 +438,24 @@ class SQLiteValidatorStorage:
             Dictionary with trend analysis data
         """
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT decay_adjusted_score, timestamp
                 FROM score_history
                 WHERE miner_uid = ?
                 AND timestamp >= datetime('now', '-{} days')
                 ORDER BY timestamp ASC
-            """.format(days), (miner_uid,))
+            """.format(days),
+                (miner_uid,),
+            )
 
             scores_over_time = cursor.fetchall()
 
             if len(scores_over_time) < 2:
-                return {'trend': 'insufficient_data', 'score_count': len(scores_over_time)}
+                return {
+                    "trend": "insufficient_data",
+                    "score_count": len(scores_over_time),
+                }
 
             # Calculate trend
             first_score = scores_over_time[0][0]
@@ -407,16 +468,22 @@ class SQLiteValidatorStorage:
             volatility = sum((s - avg_score) ** 2 for s in scores) / len(scores)
 
             return {
-                'trend': 'improving' if score_change > 0 else 'declining' if score_change < 0 else 'stable',
-                'score_change': score_change,
-                'first_score': first_score,
-                'last_score': last_score,
-                'average_score': avg_score,
-                'volatility': volatility,
-                'score_count': len(scores_over_time)
+                "trend": "improving"
+                if score_change > 0
+                else "declining"
+                if score_change < 0
+                else "stable",
+                "score_change": score_change,
+                "first_score": first_score,
+                "last_score": last_score,
+                "average_score": avg_score,
+                "volatility": volatility,
+                "score_count": len(scores_over_time),
             }
 
-    def get_historical_daily_scores(self, miner_uid: int, days: int = 31) -> list[float]:
+    def get_historical_daily_scores(
+        self, miner_uid: int, days: int = 31
+    ) -> list[float]:
         """
         Get historical daily scores for a miner for score aggregation.
 
@@ -433,19 +500,24 @@ class SQLiteValidatorStorage:
         with sqlite3.connect(self.db_path) as conn:
             # Get the most recent scores up to the specified limit,
             # regardless of exact date range to ensure proper 31-day capping
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT score, timestamp
                 FROM score_history
                 WHERE miner_uid = ?
                 ORDER BY timestamp DESC
                 LIMIT ?
-            """, (miner_uid, days))
+            """,
+                (miner_uid, days),
+            )
 
             scores = [row[0] for row in cursor.fetchall()]
 
             bittensor.logging.debug(
                 f"Retrieved {len(scores)} historical daily scores for miner {miner_uid} "
-                f"over last {days} days: {scores[:5]}..." if len(scores) > 5 else f"over last {days} days: {scores}"
+                f"over last {days} days: {scores[:5]}..."
+                if len(scores) > 5
+                else f"over last {days} days: {scores}"
             )
 
             return scores
@@ -464,23 +536,29 @@ class SQLiteValidatorStorage:
             Number of days since first score, minimum 1
         """
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT MIN(timestamp) as first_score_date
                 FROM score_history
                 WHERE miner_uid = ?
                 AND score IS NOT NULL
-            """, (miner_uid,))
+            """,
+                (miner_uid,),
+            )
 
             result = cursor.fetchone()
             first_score_date = result[0] if result and result[0] else None
 
             if not first_score_date:
-                bittensor.logging.debug(f"No score history found for miner {miner_uid}, defaulting to 1 day")
+                bittensor.logging.debug(
+                    f"No score history found for miner {miner_uid}, defaulting to 1 day"
+                )
                 return 1
 
             # Calculate days between first score and now
             from datetime import datetime, timezone
-            first_date = datetime.fromisoformat(first_score_date.replace('Z', '+00:00'))
+
+            first_date = datetime.fromisoformat(first_score_date.replace("Z", "+00:00"))
             current_date = datetime.now(timezone.utc)
             days_diff = (current_date - first_date).days
 
@@ -509,15 +587,21 @@ class SQLiteValidatorStorage:
         """
         with sqlite3.connect(self.db_path) as conn:
             # Clear score history
-            cursor = conn.execute("DELETE FROM score_history WHERE miner_uid = ?", (miner_uid,))
+            cursor = conn.execute(
+                "DELETE FROM score_history WHERE miner_uid = ?", (miner_uid,)
+            )
             deleted_history = cursor.rowcount
 
             # Clear scoring results
-            cursor = conn.execute("DELETE FROM scoring_results WHERE miner_uid = ?", (miner_uid,))
+            cursor = conn.execute(
+                "DELETE FROM scoring_results WHERE miner_uid = ?", (miner_uid,)
+            )
             deleted_results = cursor.rowcount
 
             # Clear current miner scores
-            cursor = conn.execute("DELETE FROM miner_scores WHERE miner_uid = ?", (miner_uid,))
+            cursor = conn.execute(
+                "DELETE FROM miner_scores WHERE miner_uid = ?", (miner_uid,)
+            )
             deleted_scores = cursor.rowcount
 
             conn.commit()
@@ -540,13 +624,16 @@ class SQLiteValidatorStorage:
             Last prediction ID or None if no records found
         """
         with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 SELECT prediction_id
                 FROM scoring_results
                 WHERE miner_uid = ?
                 ORDER BY timestamp DESC
                 LIMIT 1
-            """, (miner_uid,))
+            """,
+                (miner_uid,),
+            )
 
             result = cursor.fetchone()
             return result[0] if result else None

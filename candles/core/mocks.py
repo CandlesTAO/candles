@@ -5,7 +5,6 @@ import random
 import bittensor as bt
 
 
-
 class MockSubtensor(bt.MockSubtensor):
     def __init__(self, netuid, n=16, wallet=None, network="mock"):
         super().__init__(network=network)
@@ -88,12 +87,12 @@ class MockDendrite(bt.dendrite):
                     s.dummy_output = s.dummy_input * 2
                     s.dendrite.status_code = 200
                     s.dendrite.status_message = "OK"
-                    synapse.dendrite.process_time = process_time # type: ignore
+                    synapse.dendrite.process_time = process_time  # type: ignore
                 else:
                     s.dummy_output = 0
                     s.dendrite.status_code = 408
                     s.dendrite.status_message = "Timeout"
-                    synapse.dendrite.process_time = timeout # type: ignore
+                    synapse.dendrite.process_time = timeout  # type: ignore
 
                 # Return the updated synapse object after deserializing if requested
                 return s.deserialize() if deserialize else s
