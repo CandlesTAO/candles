@@ -75,7 +75,6 @@ class BaseNeuron(Protocol):
                 return await self.subtensor.get_current_block()
 
     def __init__(self, config=None):
-        # print("self.config()", self.config())
         base_config = copy.deepcopy(config or BaseNeuron.config())
         self.config = self.config()
         self.config.merge(base_config)

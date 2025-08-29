@@ -26,7 +26,7 @@ class AutoUpdater:
 
     def __init__(
         self,
-        check_interval: int = 3600,  # 1 hour
+        check_interval: int,
         config_file: str = "validator_config.json",
     ):
         """
@@ -374,7 +374,10 @@ class AutoUpdater:
 
 async def main():
     """Test function for the auto-updater."""
-    updater = AutoUpdater()
+    updater = AutoUpdater(
+        check_interval=int(os.getenv("AUTO_UPDATE_INTERVAL", 43200)),
+        config_file=os.getenv("VALIDATOR_CONFIG_FILE", "validator_config.json"),
+    )
     await updater.run_update_checker()
 
 

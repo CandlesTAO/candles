@@ -54,7 +54,7 @@ def mock_process_info():
 @pytest.fixture
 def auto_updater(temp_config_file):
     """Create an AutoUpdater instance for testing."""
-    return AutoUpdater(config_file=temp_config_file)
+    return AutoUpdater(check_interval=1800, config_file=temp_config_file)
 
 
 class TestAutoUpdaterInitialization:
@@ -62,8 +62,8 @@ class TestAutoUpdaterInitialization:
 
     def test_init_with_default_values(self):
         """Test initialization with default values."""
-        updater = AutoUpdater()
-        assert updater.check_interval == 3600
+        updater = AutoUpdater(check_interval=1800)
+        assert updater.check_interval == 1800
         assert updater.config_file == "validator_config.json"
         assert updater.auto_update_branch == "main"
         assert updater.is_running is False
@@ -88,12 +88,12 @@ class TestAutoUpdaterInitialization:
     def test_init_with_env_override(self):
         """Test that AUTO_UPDATE_BRANCH environment variable is respected."""
         with patch.dict(os.environ, {"AUTO_UPDATE_BRANCH": "develop"}):
-            updater = AutoUpdater()
+            updater = AutoUpdater(check_interval=1800)
             assert updater.auto_update_branch == "develop"
 
     def test_load_config_existing_file(self, temp_config_file):
         """Test loading configuration from existing file."""
-        updater = AutoUpdater(config_file=temp_config_file)
+        updater = AutoUpdater(check_interval=1800, config_file=temp_config_file)
 
         # Should load only the required attributes
         assert updater.config["wallet_name"] == "test_wallet"
@@ -106,7 +106,7 @@ class TestAutoUpdaterInitialization:
 
     def test_load_config_nonexistent_file(self):
         """Test loading configuration when file doesn't exist."""
-        updater = AutoUpdater(config_file="nonexistent.json")
+        updater = AutoUpdater(check_interval=1800, config_file="nonexistent.json")
 
         # Should initialize with empty config when file doesn't exist
         assert updater.config == {}
@@ -118,7 +118,7 @@ class TestAutoUpdaterInitialization:
             temp_file = f.name
 
         try:
-            updater = AutoUpdater(config_file=temp_file)
+            updater = AutoUpdater(check_interval=1800, config_file=temp_file)
 
             # Should handle corruption gracefully and initialize with empty config
             assert updater.config == {}
@@ -132,7 +132,7 @@ class TestAutoUpdaterConfigSaving:
     def test_save_config_new_file(self, tmp_path):
         """Test saving configuration to a new file."""
         config_file = str(tmp_path / "new_config.json")
-        updater = AutoUpdater(config_file=config_file)
+        updater = AutoUpdater(check_interval=1800, config_file=config_file)
 
         # Set some values
         updater.config.update(
@@ -158,7 +158,7 @@ class TestAutoUpdaterConfigSaving:
 
     def test_save_config_preserves_existing_data(self, temp_config_file):
         """Test that saving config preserves existing data not in our scope."""
-        updater = AutoUpdater(config_file=temp_config_file)
+        updater = AutoUpdater(check_interval=1800, config_file=temp_config_file)
 
         # Update our config
         updater.config.update(

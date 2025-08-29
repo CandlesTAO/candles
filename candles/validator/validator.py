@@ -91,8 +91,8 @@ class Validator(BaseValidatorNeuron):
             try:
                 self.auto_updater = AutoUpdater(
                     check_interval=int(
-                        os.getenv("AUTO_UPDATE_INTERVAL", "300")
-                    ),  # 5 minutes default
+                        os.getenv("AUTO_UPDATE_INTERVAL", 43200)  # 12 hours default
+                    ),
                     config_file=os.getenv(
                         "VALIDATOR_CONFIG_FILE", "validator_config.json"
                     ),
