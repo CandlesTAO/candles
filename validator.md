@@ -11,7 +11,7 @@ Add these environment variables to your `.env` file to enable auto-update functi
 export ENABLE_AUTO_UPDATER="true"
 
 # Set update check interval (in seconds, default: 43200 = 12 hours)
-export AUTO_UPDATE_INTERVAL="3600"
+export AUTO_UPDATE_INTERVAL=43200
 
 # Set the branch to monitor for updates (default: main)
 export AUTO_UPDATE_BRANCH="main"
