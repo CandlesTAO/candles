@@ -123,17 +123,92 @@ print_status "uv version: $(uv --version)"
 print_status "Detecting external IP address..."
 EXTERNAL_IP=""
 
-# Try multiple methods to get external IP
-if command -v curl &> /dev/null; then
-    EXTERNAL_IP=$(curl -s -4 ifconfig.me || curl -s -4 ipinfo.io/ip || curl -s -4 icanhazip.com)
-elif command -v wget &> /dev/null; then
-    EXTERNAL_IP=$(wget -qO- -4 ifconfig.me || wget -qO- -4 ipinfo.io/ip)
+# Function to validate if response is a valid IP address
+is_valid_ip() {
+    local ip=$1
+    # Check basic format first
+    if [[ ! $ip =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        return 1
+    fi
+
+    # Validate each octet is in range 0-255
+    local IFS='.'
+    local octets
+    read -ra octets <<< "$ip"
+
+    # Ensure we have exactly 4 octets
+    if [ ${#octets[@]} -ne 4 ]; then
+        return 1
+    fi
+
+    for octet in "${octets[@]}"; do
+        # Check if octet is numeric
+        if ! [[ "$octet" =~ ^[0-9]+$ ]]; then
+            return 1
+        fi
+        # Check if octet is in valid range (0-255)
+        if [ "$octet" -lt 0 ] || [ "$octet" -gt 255 ] 2>/dev/null; then
+            return 1
+        fi
+    done
+
+    return 0
+}
+
+# Function to get IP from a service
+get_ip_from_service() {
+    local url=$1
+    local result=""
+
+    if command -v curl &> /dev/null; then
+        result=$(curl -s -4 --max-time 5 "$url" 2>/dev/null | tr -d '\n\r' | grep -oE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' | head -1)
+    elif command -v wget &> /dev/null; then
+        result=$(wget -qO- -4 --timeout=5 "$url" 2>/dev/null | tr -d '\n\r' | grep -oE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' | head -1)
+    fi
+
+    if is_valid_ip "$result"; then
+        echo "$result"
+        return 0
+    fi
+    return 1
+}
+
+# Try multiple IP detection services
+if command -v curl &> /dev/null || command -v wget &> /dev/null; then
+    print_status "Trying IP detection services..."
+
+    # List of services to try
+    services=(
+        "https://api.ipify.org"
+        "https://icanhazip.com"
+        "https://ifconfig.co/ip"
+        "https://api.myip.com"
+        "https://ipinfo.io/ip"
+        "https://ifconfig.me"
+        "https://checkip.amazonaws.com"
+        "https://ipecho.net/plain"
+    )
+
+    for service in "${services[@]}"; do
+        result=$(get_ip_from_service "$service")
+        if is_valid_ip "$result"; then
+            EXTERNAL_IP="$result"
+            print_status "Successfully detected IP from $service"
+            break
+        fi
+    done
 fi
 
 # Fallback to local IP if external IP detection fails
 if [ -z "$EXTERNAL_IP" ]; then
-    print_warning "Could not detect external IP, using local IP"
-    EXTERNAL_IP=$(ip route get 1.1.1.1 | awk '{print $7; exit}')
+    print_warning "Could not detect external IP, trying local IP"
+    local_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7; exit}' || echo "")
+    if is_valid_ip "$local_ip"; then
+        EXTERNAL_IP="$local_ip"
+    else
+        print_error "Failed to detect any valid IP address"
+        exit 1
+    fi
 fi
 
 print_status "Using IP address: $EXTERNAL_IP"
